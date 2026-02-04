@@ -5,3 +5,4 @@ class ShiftNote(models.Model):
     date = models.DateField(auto_now_add=True)
     shift_type = models.EnumField(choices=['MORNING', 'EVENING'])
     content = models.TextField()
+    

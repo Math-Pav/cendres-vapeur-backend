@@ -5,3 +5,4 @@ class OrderItem(models.Model):
     product_id = models.ForeignKey('Product', on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
     unit_price_frozen = models.DecimalField(max_digits=10, decimal_places=2)
+    

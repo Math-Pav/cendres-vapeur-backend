@@ -9,3 +9,4 @@ class TwoFactorCode(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField(auto_now_add=False)
     
+    
