@@ -11,3 +11,5 @@ apps/models/__pycache__/
 apps/migrations/__pycache__/
 .idea/
 .vscode/
+
+shared/database.py

@@ -1,37 +1,69 @@
-DELETE FROM OrderItem; DELETE FROM Order; DELETE FROM Vote; 
-DELETE FROM TwoFactorCode; DELETE FROM ShiftNote; DELETE FROM ColonyEvent; 
-DELETE FROM Product; DELETE FROM CustomUser;
+-- =====================================================
+-- FAKE DATA SEED - CENDRES_VAPEUR
+-- =====================================================
 
-INSERT INTO CustomUser (id, username, email, password, role, biography) VALUES
-(1, 'Valerian_Admin', 'valerian@guilde.fr', 'hash_secure_99', 'Administrateur', 'Grand Conseil - Secteur Nord'),
-(2, 'Mathias_Pourpre', 'mathias@zonefranche.fr', 'hash_secure_01', 'Administrateur', 'Élite de la sécurité cryptée'),
-(3, 'Troc_Vendeur', 'vendeur@vapeur.com', 'hash_secure_02', 'Éditeur', 'Gestionnaire du stock de cuivre'),
-(4, 'Citoyen_Lambda', 'survivant@cendres.fr', 'hash_secure_03', 'Utilisateur', 'Ouvrier de la chaudière centrale'),
-(5, 'Espion_Anonyme', 'invit@exterieur.net', 'hash_secure_04', 'Invité', 'Visiteur de passage');
+START TRANSACTION;
 
-INSERT INTO TwoFactorCode (user_id, code, created_at, expires_at) VALUES
-(1, '8829', datetime('now'), datetime('now', '+10 minutes')),
-(2, '4412', datetime('now'), datetime('now', '+10 minutes'));
+-- Categories
+INSERT INTO apps_category (id, name, description, created_at) VALUES
+(1, 'Rituels', 'Objets utilisés lors des rituels coloniaux', NOW()),
+(2, 'Reliques', 'Artefacts anciens retrouvés dans les cendres', NOW()),
+(3, 'Consommables', 'Produits à usage unique', NOW());
 
-INSERT INTO Product (id, name, description, category, stock, base_price, current_price, popularity_score) VALUES
-(1, 'Engrenage en Bronze', 'Pièce d occasion pour turbine à vapeur', 'MÉCANIQUE', 150, 12.50, 14.20, 85),
-(2, 'Filtre à Charbon Actif', 'Indispensable pour respirer dans le Secteur Cendre', 'SURVIE', 45, 50.00, 75.00, 120),
-(3, 'Seringue d Adrénaline', 'Stimulant chimique pour double quart', 'MÉDICAL', 10, 100.00, 95.50, 30),
-(4, 'Tuyau de Cuivre Brossé', 'Matériau de construction noble', 'MATÉRIAUX', 500, 5.00, 8.40, 200);
+-- Products
+INSERT INTO apps_product
+(id, name, description, image, stock, base_price, current_price, popularity_score, category_id)
+VALUES
+(1, 'Encens Noir', 'Encens utilisé pour les invocations mineures', 'encens_noir.jpg', 120, 5.00, 6.50, 8.2, 3),
+(2, 'Masque de Cendre', 'Masque rituel ancestral', 'masque_cendre.jpg', 15, 45.00, 59.90, 9.4, 2),
+(3, 'Bougie Runique', 'Bougie gravée de symboles anciens', 'bougie_runique.jpg', 60, 12.00, 14.00, 7.1, 1);
 
-INSERT INTO ColonyEvent (title, date, severity) VALUES
-('Fuite de Vapeur Secteur 4', '2026-02-05', 'ÉLEVÉE'),
-('Arrivée du convoi de ravitaillement', '2026-02-07', 'NORMALE');
+-- Users
+INSERT INTO apps_customuser
+(id, username, email, password, role, avatar_url, biography)
+VALUES
+(1, 'admin', 'admin@cendres.test', 'hashed_password_admin', 'ADMIN', NULL, 'Gardien des archives.'),
+(2, 'elyra', 'elyra@cendres.test', 'hashed_password_user', 'USER', NULL, 'Adepte des rituels anciens.'),
+(3, 'morth', 'morth@cendres.test', 'hashed_password_user', 'USER', NULL, 'Chercheur de reliques.');
 
-INSERT INTO ShiftNote (user_id, date, shift_type, content) VALUES
-(2, '2026-02-04', 'MATIN', 'Pression de la chaudière stable. Pas d intrusion réseau détectée.'),
-(4, '2026-02-04', 'SOIR', 'Surchauffe signalée sur le piston n°3.');
+-- Orders
+INSERT INTO apps_order
+(id, status, total_amount, created_at, invoice_file, user_id)
+VALUES
+(1, 'PAID', 73.90, NOW(), 'invoice_001.pdf', 2),
+(2, 'PENDING', 14.00, NOW(), NULL, 3);
 
-INSERT INTO Vote (user_id, product_id) VALUES (4, 1), (4, 2), (1, 2), (2, 4);
+-- Order Items
+INSERT INTO apps_orderitem
+(id, quantity, unit_price_frozen, order_id, product_id)
+VALUES
+(1, 1, 59.90, 1, 2),
+(2, 2, 6.50, 1, 1),
+(3, 1, 14.00, 2, 3);
 
-INSERT INTO "Order" (id, user_id, status, total_amount, created_at) VALUES
-(1, 4, 'COMPLÉTÉ', 89.20, '2026-02-03 14:30:00');
+-- Shift Notes
+INSERT INTO apps_shiftnote
+(id, date, shift_type, content, order_id)
+VALUES
+(1, CURDATE(), 'NIGHT', 'Commande traitée durant le cycle nocturne.', 1);
 
-INSERT INTO OrderItem (order_id, product_id, quantity, unit_price_frozen) VALUES
-(1, 1, 1, 14.20),
-(1, 2, 1, 75.00);
+-- Colony Events
+INSERT INTO apps_colonyevent
+(id, title, date, severity)
+VALUES
+(1, 'Chute de cendres excessive', '2026-01-12', 'HIGH'),
+(2, 'Extinction partielle des flammes', '2026-02-01', 'LOW');
+
+-- Votes
+INSERT INTO apps_vote (id, product_id, user_id) VALUES
+(1, 2, 2),
+(2, 2, 3),
+(3, 1, 2);
+
+-- Two-factor codes
+INSERT INTO apps_twofactorcode
+(id, code, created_at, expires_at, user_id)
+VALUES
+(1, '483920', NOW(), DATE_ADD(NOW(), INTERVAL 10 MINUTE), 2);
+
+COMMIT;
