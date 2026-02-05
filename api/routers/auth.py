@@ -1,4 +1,5 @@
 import json
+import bcrypt
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
@@ -33,9 +34,7 @@ def login(request):
             "error": "Email ou mot de passe incorrect"
         }, status=401)
     
-    # Vérifier le mot de passe (comparaison simple)
-    # TODO: À remplacer par du hachage (bcrypt, PBKDF2, etc.)
-    if user.password != password:
+    if not bcrypt.checkpw(password.encode(), user.password.encode()):
         return JsonResponse({
             "success": False,
             "error": "Email ou mot de passe incorrect"
@@ -88,10 +87,12 @@ def register(request):
             "error": "Ce username existe déjà"
         }, status=400)
     
+    hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    
     user = CustomUser.objects.create(
         username=username,
         email=email,
-        password=password,  # TODO: Hasher le mot de passe!
+        password=hashed_password,
         role='USER'
     )
     
