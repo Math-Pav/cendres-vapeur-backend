@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.urls import path
-from api.routers import auth
+from api.router import auth
 
 urlpatterns = [
     path('admin/', admin.site.urls),
