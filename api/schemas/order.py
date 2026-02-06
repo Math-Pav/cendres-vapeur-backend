@@ -56,3 +56,9 @@ class CartResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PaymentRequest(BaseModel):
+    """Requête pour simuler un paiement PayPal"""
+    paypal_email: str
+    approve: bool = True

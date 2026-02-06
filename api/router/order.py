@@ -4,7 +4,8 @@ from api.schemas.order import (
     OrderCreate, 
     OrderOut, 
     AddToCartRequest, 
-    CartResponse
+    CartResponse,
+    PaymentRequest
 )
 from api.crud.order import (
     list_orders,
@@ -13,10 +14,10 @@ from api.crud.order import (
     update_order,
     delete_order,
     get_or_create_cart,
-    add_product_to_cart,
-    finalize_order
+    add_product_to_cart
 )
 from shared.pdf_generator import generate_invoice_pdf
+from shared.paypal_simulator import simulate_paypal_payment
 from apps.models import OrderItem
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
@@ -122,23 +123,16 @@ def download_invoice(order_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{order_id}/finalize")
-def finalize_order_endpoint(order_id: int):
-    """Finalise une commande : génère la facture et change le statut en PAID"""
+@router.post("/{order_id}/payment")
+def process_paypal_payment(order_id: int, request: PaymentRequest):
+    """
+    Simule un paiement PayPal
+    Si approve=true : approuve le paiement, génère la facture et crée un nouveau panier
+    Si approve=false : refuse le paiement
+    """
     try:
-        order = finalize_order(order_id)
-        return {
-            "success": True,
-            "message": "Commande finalisée",
-            "order": {
-                "id": int(order.id),
-                "user_id": int(order.user_id),
-                "status": str(order.status),
-                "total_amount": float(order.total_amount),
-                "invoice_file": str(order.invoice_file) if order.invoice_file else "",
-                "created_at": order.created_at.isoformat() if order.created_at else None
-            }
-        }
+        result = simulate_paypal_payment(order_id, request.paypal_email, request.approve)
+        return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
