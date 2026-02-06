@@ -1,9 +1,7 @@
-import json
 import bcrypt
-from datetime import datetime, timedelta
-from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
+from datetime import timedelta
+from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel
 from django.utils import timezone
 from apps.models.customUser import CustomUser
 from apps.models.twoFactorCode import TwoFactorCode
@@ -11,44 +9,57 @@ from shared.security import generate_2fa_code, generate_jwt_token
 from shared.mailer import send_2fa_code_email, send_welcome_email
 
 
-@csrf_exempt
-@require_http_methods(["POST"])
-def login(request):
+router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class Verify2FARequest(BaseModel):
+    user_id: int
+    code: str
+
+
+class RegisterRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    role: str
+    avatar_url: str | None = None
+    biography: str | None = None
+
+
+@router.post("/login/")
+def login(data: LoginRequest):
     """
     Étape 1 du login: Valider email/password
     Génère un code 2FA et l'envoie par email
     Retourne une session temporaire pour la prochaine étape
     """
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({
-            "success": False,
-            "error": "JSON invalide"
-        }, status=400)
-    
-    email = data.get("email", "").strip()
-    password = data.get("password", "")
-    
-    if not email or not password:
-        return JsonResponse({
-            "success": False,
-            "error": "Email et mot de passe requis"
-        }, status=400)
+    email = data.email.strip()
+    password = data.password
     
     try:
         user = CustomUser.objects.get(email=email)
     except CustomUser.DoesNotExist:
-        return JsonResponse({
-            "success": False,
-            "error": "Email ou mot de passe incorrect"
-        }, status=401)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email ou mot de passe incorrect"
+        )
     
     if not bcrypt.checkpw(password.encode(), user.password.encode()):
-        return JsonResponse({
-            "success": False,
-            "error": "Email ou mot de passe incorrect"
-        }, status=401)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email ou mot de passe incorrect"
+        )
     
     two_fa_code = generate_2fa_code()
     
@@ -63,68 +74,53 @@ def login(request):
     
     send_2fa_code_email(user.email, two_fa_code, user.username)
     
-    return JsonResponse({
+    return {
         "success": True,
         "message": "Code 2FA envoyé par email",
         "user_id": user.id,
         "email": user.email,
         "next_step": "Validez le code 2FA",
         "expiry_minutes": 10
-    }, status=200)
+    }
 
 
-@csrf_exempt
-@require_http_methods(["POST"])
-def verify_2fa(request):
+@router.post("/verify-2fa/")
+def verify_2fa(data: Verify2FARequest):
     """
     Étape 2 du login: Valider le code 2FA
     Génère et retourne un JWT token
     """
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({
-            "success": False,
-            "error": "JSON invalide"
-        }, status=400)
-    
-    user_id = data.get("user_id")
-    code = data.get("code", "").strip()
-    
-    if not user_id or not code:
-        return JsonResponse({
-            "success": False,
-            "error": "user_id et code requis"
-        }, status=400)
+    user_id = data.user_id
+    code = data.code.strip()
     
     try:
         user = CustomUser.objects.get(id=user_id)
     except CustomUser.DoesNotExist:
-        return JsonResponse({
-            "success": False,
-            "error": "Utilisateur non trouvé"
-        }, status=404)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Utilisateur non trouvé"
+        )
     
     try:
         two_fa = TwoFactorCode.objects.get(user=user, code=code)
     except TwoFactorCode.DoesNotExist:
-        return JsonResponse({
-            "success": False,
-            "error": "Code 2FA invalide"
-        }, status=401)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Code 2FA invalide"
+        )
     
     if timezone.now() > two_fa.expires_at:
         two_fa.delete()
-        return JsonResponse({
-            "success": False,
-            "error": "Code 2FA expiré"
-        }, status=401)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Code 2FA expiré"
+        )
     
     token = generate_jwt_token(user)
     
     two_fa.delete()
     
-    return JsonResponse({
+    return {
         "success": True,
         "message": "Authentification réussie",
         "token": token,
@@ -137,44 +133,29 @@ def verify_2fa(request):
             "biography": user.biography
         },
         "expires_in": "24h"
-    }, status=200)
+    }
 
 
-@csrf_exempt
-@require_http_methods(["POST"])
-def register(request):
+@router.post("/register/")
+def register(data: RegisterRequest):
     """
     Inscription: Créer un nouvel utilisateur
     """
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({
-            "success": False,
-            "error": "JSON invalide"
-        }, status=400)
-    
-    username = data.get("username", "").strip()
-    email = data.get("email", "").strip()
-    password = data.get("password", "")
-    
-    if not username or not email or not password:
-        return JsonResponse({
-            "success": False,
-            "error": "Username, email et password requis"
-        }, status=400)
+    username = data.username.strip()
+    email = data.email.strip()
+    password = data.password
     
     if CustomUser.objects.filter(email=email).exists():
-        return JsonResponse({
-            "success": False,
-            "error": "Cet email existe déjà"
-        }, status=400)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cet email existe déjà"
+        )
     
     if CustomUser.objects.filter(username=username).exists():
-        return JsonResponse({
-            "success": False,
-            "error": "Ce username existe déjà"
-        }, status=400)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ce username existe déjà"
+        )
     
     hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     
@@ -187,7 +168,7 @@ def register(request):
     
     send_welcome_email(user.email, user.username)
     
-    return JsonResponse({
+    return {
         "success": True,
         "user": {
             "id": user.id,
@@ -196,15 +177,15 @@ def register(request):
             "role": user.role
         },
         "message": "Utilisateur créé avec succès"
-    }, status=201)
+    }
 
 
-@csrf_exempt
-@require_http_methods(["GET"])
-def users_list(request):
+@router.get("/users/")
+def users_list():
     """Liste tous les utilisateurs (test)"""
     users = CustomUser.objects.all().values()
-    return JsonResponse({
+    return {
         "success": True,
         "users": list(users)
-    }, status=200)
+    }
+
