@@ -59,8 +59,12 @@ def add_product_to_cart(user_id: int, product_id: int, quantity: int):
     
     product = Product.objects.get(id=product_id)
     
+    # Vérifie le stock disponible
     if product.stock < quantity:
-        raise ValueError("Stock insuffisant")
+        raise ValueError(
+            f"Stock insuffisant pour '{product.name}' : "
+            f"vous demandez {quantity} unités mais il n'y en a que {product.stock} en stock"
+        )
     
     order_item = OrderItem.objects.filter(
         order=cart,
@@ -68,6 +72,14 @@ def add_product_to_cart(user_id: int, product_id: int, quantity: int):
     ).first()
     
     if order_item:
+        # Vérifie que la quantité totale ne dépasse pas le stock
+        total_quantity = order_item.quantity + quantity
+        if product.stock < total_quantity:
+            raise ValueError(
+                f"Stock insuffisant pour '{product.name}' : "
+                f"vous avez déjà {order_item.quantity} unité(s) et en demandez {quantity} de plus "
+                f"(total {total_quantity}) mais il n'y en a que {product.stock} en stock"
+            )
         order_item.quantity += quantity
         order_item.save()
     else:
