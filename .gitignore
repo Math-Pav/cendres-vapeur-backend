@@ -5,6 +5,11 @@ venv
 *.log
 *.pyc
 
-__pycache__/
+core/__pycache__/
+shared/__pycache__/
+apps/models/__pycache__/
+apps/migrations/__pycache__/
 .idea/
 .vscode/
+
+shared/database.py
