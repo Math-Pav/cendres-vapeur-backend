@@ -59,7 +59,6 @@ def add_product_to_cart(user_id: int, product_id: int, quantity: int):
     
     product = Product.objects.get(id=product_id)
     
-    # Vérifie le stock disponible
     if product.stock < quantity:
         raise ValueError(
             f"Stock insuffisant pour '{product.name}' : "
@@ -72,7 +71,6 @@ def add_product_to_cart(user_id: int, product_id: int, quantity: int):
     ).first()
     
     if order_item:
-        # Vérifie que la quantité totale ne dépasse pas le stock
         total_quantity = order_item.quantity + quantity
         if product.stock < total_quantity:
             raise ValueError(
@@ -103,6 +101,68 @@ def update_cart_total(cart):
     )
     cart.total_amount = total
     cart.save()
+
+
+def remove_product_from_cart(user_id: int, product_id: int):
+    """Retire complètement un produit du panier"""
+    cart = get_or_create_cart(user_id)
+    
+    order_item = OrderItem.objects.filter(
+        order=cart,
+        product_id=product_id
+    ).first()
+    
+    if not order_item:
+        raise ValueError(f"Produit {product_id} non trouvé dans le panier")
+    
+    order_item.delete()
+    update_cart_total(cart)
+    
+    return True
+
+
+def update_cart_item_quantity(user_id: int, product_id: int, new_quantity: int):
+    """Met à jour la quantité d'un produit dans le panier"""
+    cart = get_or_create_cart(user_id)
+    product = Product.objects.get(id=product_id)
+    
+    if new_quantity <= 0:
+        raise ValueError("La quantité doit être supérieure à 0")
+    
+    order_item = OrderItem.objects.filter(
+        order=cart,
+        product=product
+    ).first()
+    
+    if not order_item:
+        raise ValueError(f"Produit {product_id} non trouvé dans le panier")
+
+    quantity_difference = new_quantity - order_item.quantity
+    available_stock = product.stock + order_item.quantity
+    
+    if new_quantity > available_stock:
+        raise ValueError(
+            f"Stock insuffisant pour '{product.name}' : "
+            f"stock disponible {available_stock}, vous demandez {new_quantity}"
+        )
+    
+    order_item.quantity = new_quantity
+    order_item.save()
+    update_cart_total(cart)
+    
+    return order_item
+
+
+def clear_cart(user_id: int):
+    """Vide complètement le panier de l'utilisateur"""
+    cart = get_or_create_cart(user_id)
+    
+    OrderItem.objects.filter(order=cart).delete()
+    
+    cart.total_amount = 0
+    cart.save()
+    
+    return cart
 
 
 def finalize_order(order_id: int):

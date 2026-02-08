@@ -5,7 +5,8 @@ from api.schemas.order import (
     OrderOut, 
     AddToCartRequest, 
     CartResponse,
-    PaymentRequest
+    PaymentRequest,
+    UpdateCartItemRequest
 )
 from api.crud.order import (
     list_orders,
@@ -14,7 +15,10 @@ from api.crud.order import (
     update_order,
     delete_order,
     get_or_create_cart,
-    add_product_to_cart
+    add_product_to_cart,
+    remove_product_from_cart,
+    update_cart_item_quantity,
+    clear_cart
 )
 from shared.pdf_generator import generate_invoice_pdf
 from shared.paypal_simulator import simulate_paypal_payment
@@ -102,6 +106,77 @@ def get_user_cart(user_id: int):
                 }
                 for item in items
             ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/cart/{user_id}/product/{product_id}")
+def update_product_quantity(user_id: int, product_id: int, request: UpdateCartItemRequest):
+    """Modifie la quantité d'un produit dans le panier"""
+    try:
+        order_item = update_cart_item_quantity(user_id, product_id, request.quantity)
+        cart = order_item.order
+        items = OrderItem.objects.filter(order=cart)
+        
+        return {
+            "success": True,
+            "message": "Quantité mise à jour",
+            "order_item": {
+                "id": order_item.id,
+                "product_id": order_item.product_id,
+                "quantity": order_item.quantity,
+                "unit_price_frozen": str(order_item.unit_price_frozen)
+            },
+            "cart": {
+                "id": cart.id,
+                "total_amount": str(cart.total_amount),
+                "item_count": items.count()
+            }
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/cart/{user_id}/product/{product_id}")
+def remove_from_cart(user_id: int, product_id: int):
+    """Retire un produit du panier"""
+    try:
+        remove_product_from_cart(user_id, product_id)
+        cart = get_or_create_cart(user_id)
+        items = OrderItem.objects.filter(order=cart)
+        
+        return {
+            "success": True,
+            "message": "Produit retiré du panier",
+            "cart": {
+                "id": cart.id,
+                "total_amount": str(cart.total_amount),
+                "item_count": items.count()
+            }
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/cart/{user_id}")
+def empty_cart(user_id: int):
+    """Vide complètement le panier de l'utilisateur"""
+    try:
+        cart = clear_cart(user_id)
+        
+        return {
+            "success": True,
+            "message": "Panier vidé",
+            "cart": {
+                "id": cart.id,
+                "total_amount": str(cart.total_amount),
+                "item_count": 0
+            }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
