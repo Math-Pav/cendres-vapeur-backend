@@ -1,18 +1,18 @@
 from django.db import models
 
 class Vote(models.Model):
-    # On utilise des guillemets ' ' pour éviter les erreurs d'import circulaire
-    user = models.ForeignKey('CustomUser', on_delete=models.CASCADE)
-    product = models.ForeignKey('Product', related_name='votes', on_delete=models.CASCADE)
-    vote = models.TextField(blank=True) 
-    note = models.IntegerField(default=0)
+    user = models.ForeignKey('apps.CustomUser', on_delete=models.CASCADE)
+    product = models.ForeignKey('apps.Product', related_name='votes', on_delete=models.CASCADE)
     
-    # Ajout : Date du vote (utile pour les stats)
+    
+    comment = models.TextField(blank=True, null=True) 
+    
+    note = models.IntegerField(default=0)
+    like = models.BooleanField(default=False)
+    
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        # RÈGLE D'OR : Un couple (user, product) doit être unique.
-        # Impossible de voter deux fois pour le même objet.
         unique_together = ('user', 'product')
 
     def __str__(self):

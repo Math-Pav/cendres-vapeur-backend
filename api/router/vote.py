@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 from decimal import Decimal
 from django.apps import apps
 from apps.models.product import Product 
@@ -6,15 +7,20 @@ from apps.models.vote import Vote
 
 router = APIRouter()
 
+class VotePayload(BaseModel):
+    user_id: int
+    note: int = Field(..., ge=1, le=10, description="Note entre 1 et 10")
+    comment: str | None = Field(None, description="Ton avis écrit")
+    like: bool = Field(True, description="Est-ce que tu aimes le produit ? (True/False)")
+
+class LikePayload(BaseModel):
+    user_id: int
+
 @router.post("/products/{product_id}/vote")
-def vote_algorithm(product_id: int, user_id: int):
-    """
-    Permet à un utilisateur existant de voter pour un produit existant.
-    Applique l'inflation de 1% sur le prix.
-    """
+def vote_product(product_id: int, payload: VotePayload):
     try:
-        # 1. Vérification : L'utilisateur existe-t-il ?
-        # On récupère le bon modèle d'utilisateur dynamiquement
+        user_id = payload.user_id
+        
         try:
             User = apps.get_model('apps', 'CustomUser')
         except LookupError:
@@ -22,52 +28,65 @@ def vote_algorithm(product_id: int, user_id: int):
             User = get_user_model()
 
         if not User.objects.filter(id=user_id).exists():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
-                detail=f"L'utilisateur avec l'ID {user_id} n'existe pas."
-            )
-
-        # 2. Vérification : Le produit existe-t-il ?
-        try:
-            product = Product.objects.get(id=product_id)
-        except Product.DoesNotExist:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
-                detail=f"Le produit avec l'ID {product_id} n'existe pas."
-            )
-
-        # 3. Vérification : A-t-il déjà voté ?
-        if Vote.objects.filter(user_id=user_id, product_id=product_id).exists():
-            return {
-                "status": "info",
-                "message": "Cet utilisateur a déjà voté pour ce produit.",
-                "current_price": product.current_price
-            }
-
-        # 4. Action : Enregistrement du vote
-        Vote.objects.create(user_id=user_id, product_id=product_id)
-
-        # 5. Action : Algorithme Économique (Inflation +1%)
-        product.previous_price = product.current_price
-        product.popularity_score += 1.0
-        product.current_price = product.current_price * Decimal('1.01')
+            raise HTTPException(status_code=404, detail="Utilisateur inconnu.")
         
-        # Calcul du pourcentage de variation pour l'affichage
-        if product.previous_price > 0:
-            delta = product.current_price - product.previous_price
-            product.price_change_percentage = float((delta / product.previous_price) * 100)
-            
-        product.save()
+        if not Product.objects.filter(id=product_id).exists():
+            raise HTTPException(status_code=404, detail="Produit inconnu.")
+
+        vote, created = Vote.objects.update_or_create(
+            user_id=user_id,
+            product_id=product_id,
+            defaults={
+                'note': payload.note,
+                'comment': payload.comment,
+                'like': payload.like  
+            }
+        )
+
+        product = Product.objects.get(id=product_id)
+        if created:
+            product.previous_price = product.current_price
+            product.popularity_score += 1.0
+            product.current_price = product.current_price * Decimal('1.01')
+            product.save()
 
         return {
             "status": "success", 
-            "message": "Vote accepté.", 
-            "new_price": product.current_price,
-            "variation": f"+{product.price_change_percentage:.2f}%"
+            "message": "Review complète enregistrée !",
+            "note": vote.note,
+            "comment": vote.comment,
+            "liked": vote.like,
+            "new_price": product.current_price
         }
 
-    except HTTPException as http_ex:
-        raise http_ex
     except Exception as e:
-        # Gestion des erreurs imprévues
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/products/{product_id}/like")
+def toggle_like(product_id: int, payload: LikePayload):
+    """
+    Active ou Désactive le Like sans toucher au commentaire.
+    """
+    try:
+        vote, created = Vote.objects.get_or_create(
+            user_id=payload.user_id, 
+            product_id=product_id,
+            defaults={'note': 0, 'comment': None, 'like': False}
+        )
+
+        vote.like = not vote.like
+        vote.save()
+
+        status_message = "LIKED" if vote.like else "UNLIKED"
+        total_likes = Vote.objects.filter(product_id=product_id, like=True).count()
+
+        return {
+            "status": "success",
+            "action": status_message,
+            "is_liked": vote.like,
+            "total_likes": total_likes
+        }
+
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
