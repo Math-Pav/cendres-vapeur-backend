@@ -1,11 +1,11 @@
 import bcrypt
 from datetime import timedelta
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from django.utils import timezone
 from apps.models.customUser import CustomUser
 from apps.models.twoFactorCode import TwoFactorCode
-from shared.security import generate_2fa_code, generate_jwt_token
+from shared.security import generate_2fa_code, generate_jwt_token, require_roles
 from shared.mailer import send_2fa_code_email, send_welcome_email
 
 
@@ -180,7 +180,7 @@ def register(data: RegisterRequest):
     }
 
 
-@router.get("/users/")
+@router.get("/users/", dependencies=[Depends(require_roles("ADMIN"))])
 def users_list():
     """Liste tous les utilisateurs (test)"""
     users = CustomUser.objects.all().values()
