@@ -40,10 +40,12 @@ def simulate_paypal_payment(order_id: int, paypal_email: str, approve: bool = Tr
       - Approuve le paiement
       - Change le statut en PAID
       - Génère la facture
+      - Envoie un email de confirmation
       - Crée un nouveau panier PENDING
     Si approve=False : refuse le paiement (statut reste PENDING)
     """
     from shared.pdf_generator import save_invoice_to_file
+    from shared.mailer import send_payment_confirmation_email
     
     order = Order.objects.get(id=order_id)
     
@@ -55,11 +57,8 @@ def simulate_paypal_payment(order_id: int, paypal_email: str, approve: bool = Tr
     
     if approve:
         verify_stock_availability(order_id)
-        
         update_product_stocks(order_id)
-        
         save_invoice_to_file(order_id)
-        
         order.status = 'PAID'
         order.save()
         
@@ -71,9 +70,17 @@ def simulate_paypal_payment(order_id: int, paypal_email: str, approve: bool = Tr
         
         transaction_id = f"PAYPAL-{uuid.uuid4().hex.upper()[:12]}"
         
+        send_payment_confirmation_email(
+            email=order.user.email,
+            username=order.user.username,
+            order_id=order_id,
+            total_amount=float(order.total_amount),
+            transaction_id=transaction_id
+        )
+        
         return {
             "success": True,
-            "message": "Paiement approuvé - Facture générée",
+            "message": "Paiement approuvé - Email envoyé",
             "payment": {
                 "transaction_id": transaction_id,
                 "paypal_email": paypal_email,
