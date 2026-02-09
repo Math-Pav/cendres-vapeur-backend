@@ -4,6 +4,8 @@ class Vote(models.Model):
     # On utilise des guillemets ' ' pour éviter les erreurs d'import circulaire
     user = models.ForeignKey('CustomUser', on_delete=models.CASCADE)
     product = models.ForeignKey('Product', related_name='votes', on_delete=models.CASCADE)
+    vote = models.TextField(blank=True) 
+    note = models.IntegerField(default=0)
     
     # Ajout : Date du vote (utile pour les stats)
     created_at = models.DateTimeField(auto_now_add=True)
