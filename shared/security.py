@@ -1,3 +1,4 @@
+from fastapi import Depends, HTTPException, status, Header
 import jwt
 import random
 import string
@@ -40,3 +41,28 @@ def verify_jwt_token(token):
         return None  
     except jwt.InvalidTokenError:
         return None 
+
+
+def get_current_payload(authorization: str = Header(...)):
+    """
+    Dépendance FastAPI pour extraire et vérifier le JWT token
+    Retourne le payload du token ou lève une exception si invalide
+    """
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authorization header")
+    
+    token = authorization.split(" ")[1]
+    payload = verify_jwt_token(token)
+    
+    if payload is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+    
+    return payload
+    
+
+def require_roles(*roles):
+    def _checker(payload = Depends(get_current_payload)):
+        if payload.get("role") not in roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+        return payload
+    return _checker

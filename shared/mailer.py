@@ -176,9 +176,6 @@ SMTP_PASSWORD = Env.SMTP_PASSWORD
 
 async def envoyer_missive(missive: Missive):
     try:
-
-async def envoyer_missive(missive: Missive):
-    try:
         # Formatage du contenu pour la colonie
         corps_mail = f"""
         --- MESSAGE REÇU DU SECTEUR EXTERNE ---
