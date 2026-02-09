@@ -34,6 +34,14 @@ class AddToCartRequest(BaseModel):
     quantity: int = 1
 
 
+class UpdateCartItemRequest(BaseModel):
+    """Requête pour modifier la quantité d'un article du panier"""
+    quantity: int
+
+    class Config:
+        from_attributes = True
+
+
 class CartItemResponse(BaseModel):
     """Réponse pour un article du panier"""
     id: int

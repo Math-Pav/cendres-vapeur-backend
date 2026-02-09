@@ -1,5 +1,4 @@
 from fastapi import APIRouter, HTTPException
-from api import router
 from api.schemas.orderItem import OrderItemCreate, OrderItemOut
 from api.crud.orderItem import (
     list_order_items,
