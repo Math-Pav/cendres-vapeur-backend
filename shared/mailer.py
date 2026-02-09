@@ -10,6 +10,7 @@ from email.mime.text import MIMEText
 from shared.env import Env
 
 
+
 def send_2fa_code_email(email, code, username):
     """
     Envoie le code 2FA par email
@@ -167,6 +168,7 @@ class Missive(BaseModel):
     sujet: str
     message: str
 
+# Paramètres de télégraphie simulée (Mailtrap)
 SMTP_SERVER = Env.SMTP_SERVER
 SMTP_PORT = Env.SMTP_PORT
 SMTP_USER = Env.SMTP_USER_ID
@@ -174,6 +176,10 @@ SMTP_PASSWORD = Env.SMTP_PASSWORD
 
 async def envoyer_missive(missive: Missive):
     try:
+
+async def envoyer_missive(missive: Missive):
+    try:
+        # Formatage du contenu pour la colonie
         corps_mail = f"""
         --- MESSAGE REÇU DU SECTEUR EXTERNE ---
         Expéditeur : {missive.expediteur}
@@ -190,6 +196,7 @@ async def envoyer_missive(missive: Missive):
         msg['Subject'] = f"[URGENT] {missive.sujet}"
         msg.attach(MIMEText(corps_mail, 'plain'))
 
+        # Expédition via le tunnel sécurisé
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
             server.login(SMTP_USER, SMTP_PASSWORD)
@@ -198,4 +205,5 @@ async def envoyer_missive(missive: Missive):
         return {"status": "success", "message": "La missive a été transmise au Grand Conseil."}
     
     except Exception as e:
+        # Gestion stricte des erreurs formatée en JSON [cite: 32]
         raise HTTPException(status_code=500, detail=f"Échec de la transmission : {str(e)}")
