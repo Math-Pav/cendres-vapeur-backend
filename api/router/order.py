@@ -18,7 +18,9 @@ from api.crud.order import (
     add_product_to_cart,
     remove_product_from_cart,
     update_cart_item_quantity,
-    clear_cart
+    clear_cart,
+    apply_discount_code,
+    remove_discount
 )
 from shared.pdf_generator import generate_invoice_pdf
 from shared.paypal_simulator import simulate_paypal_payment
@@ -211,5 +213,31 @@ def process_paypal_payment(order_id: int, request: PaymentRequest):
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{order_id}/apply-discount", dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
+def apply_discount(order_id: int, discount_code: str):
+    """
+    Applique un code de réduction à une commande
+    """
+    try:
+        result = apply_discount_code(order_id, discount_code)
+        if not result['success']:
+            raise HTTPException(status_code=400, detail=result['message'])
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{order_id}/remove-discount", dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
+def remove_discount_endpoint(order_id: int):
+    """Retire la remise d'une commande"""
+    try:
+        result = remove_discount(order_id)
+        if not result['success']:
+            raise HTTPException(status_code=400, detail=result['message'])
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

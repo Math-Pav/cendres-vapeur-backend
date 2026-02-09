@@ -190,3 +190,98 @@ def finalize_order(order_id: int):
     )
     
     return order
+
+
+# Codes de réduction disponibles
+DISCOUNT_CODES = {
+    'WELCOME10': 10,        # 10% de réduction
+    'PROMO15': 15,          # 15% de réduction
+    'SPECIAL20': 20,        # 20% de réduction
+    'VIP25': 25,            # 25% de réduction
+    'NEWUSER5': 5,          # 5% de réduction
+}
+
+
+def apply_discount_code(order_id: int, code: str):
+    """
+    Applique un code de réduction à une commande
+    Retourne la réduction appliquée
+    """
+    order = Order.objects.filter(id=order_id).first()
+    if not order:
+        return {
+            'success': False,
+            'message': 'Commande non trouvée'
+        }
+    
+    code = code.upper().strip()
+    
+    if code not in DISCOUNT_CODES:
+        return {
+            'success': False,
+            'message': 'Code de réduction invalide'
+        }
+    
+    if order.status != 'PENDING':
+        return {
+            'success': False,
+            'message': 'Impossible d\'appliquer une réduction à cette commande'
+        }
+    
+    percentage = DISCOUNT_CODES[code]
+    
+    items_total = sum(
+        item.quantity * item.unit_price_frozen 
+        for item in order.orderitem_set.all()
+    )
+    
+    discount_amount = (items_total * percentage) / 100
+    new_total = items_total - discount_amount
+    
+    order.discount_code = code
+    order.discount_amount = discount_amount
+    order.total_amount = new_total
+    order.save()
+    
+    return {
+        'success': True,
+        'message': f'Code {code} appliqué avec succès',
+        'discount_code': code,
+        'discount_percentage': percentage,
+        'discount_amount': float(discount_amount),
+        'subtotal': float(items_total),
+        'total_amount': float(new_total),
+        'savings': f'{percentage}%'
+    }
+
+
+def remove_discount(order_id: int):
+    """Retire la remise d'une commande"""
+    order = Order.objects.filter(id=order_id).first()
+    if not order:
+        return {
+            'success': False,
+            'message': 'Commande non trouvée'
+        }
+    
+    if order.status != 'PENDING':
+        return {
+            'success': False,
+            'message': 'Impossible de retirer une réduction de cette commande'
+        }
+    
+    items_total = sum(
+        item.quantity * item.unit_price_frozen 
+        for item in order.orderitem_set.all()
+    )
+    
+    order.discount_code = None
+    order.discount_amount = 0
+    order.total_amount = items_total
+    order.save()
+    
+    return {
+        'success': True,
+        'message': 'Remise supprimée',
+        'total_amount': float(items_total)
+    }
