@@ -1,3 +1,4 @@
+from apps.classes.log import create_log
 from apps.models import ColonyEvent
 
 def list_colony_events():

@@ -1,6 +1,7 @@
 from apps.models import Order, OrderItem, Product
 from apps.models.customUser import CustomUser
 from shared.pdf_generator import save_invoice_to_file
+from apps.classes.log import create_log
 
 
 

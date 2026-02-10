@@ -3,6 +3,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from django.utils import timezone
+from apps.classes.log import create_log
 from apps.models.customUser import CustomUser
 from apps.models.twoFactorCode import TwoFactorCode
 from shared.security import generate_2fa_code, generate_jwt_token, require_roles
@@ -116,6 +117,7 @@ def verify_2fa(data: Verify2FARequest):
             detail="Code 2FA expiré"
         )
     
+    create_log("2FA verified", user.username)
     token = generate_jwt_token(user)
     
     two_fa.delete()
@@ -165,7 +167,7 @@ def register(data: RegisterRequest):
         password=hashed_password,
         role='USER'
     )
-    
+    create_log("Register event created", data["username"])
     send_welcome_email(user.email, user.username)
     
     return {
