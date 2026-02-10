@@ -167,7 +167,7 @@ def register(data: RegisterRequest):
         password=hashed_password,
         role='USER'
     )
-    create_log("Register event created", data["username"])
+    create_log("Register event created", user)
     send_welcome_email(user.email, user.username)
     
     return {
