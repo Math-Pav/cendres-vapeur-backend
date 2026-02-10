@@ -181,3 +181,119 @@ def get_product_price_info(product_id: int):
     
     except Product.DoesNotExist:
         return {'success': False, 'error': 'Product not found'}
+
+
+def get_product_votes(product_id: int):
+    """
+    Récupère tous les votes/notes/commentaires d'un produit
+    Retourne les détails de chaque vote avec infos sur l'utilisateur
+    """
+    try:
+        product = Product.objects.get(id=product_id)
+        from apps.models.vote import Vote
+        
+        votes = Vote.objects.filter(product=product).select_related('user').order_by('-created_at')
+        
+        votes_list = []
+        for vote in votes:
+            votes_list.append({
+                'vote_id': vote.id,
+                'user_id': vote.user.id,
+                'username': vote.user.username,
+                'user_avatar': vote.user.avatar_url,
+                'note': vote.note,
+                'comment': vote.comment,
+                'like': vote.like,
+                'created_at': vote.created_at.isoformat()
+            })
+        
+        total_votes = len(votes_list)
+        total_likes = sum(1 for v in votes_list if v['like'])
+        average_note = sum(v['note'] for v in votes_list) / total_votes if total_votes > 0 else 0
+        
+        return {
+            'success': True,
+            'product_id': product_id,
+            'product_name': product.name,
+            'total_votes': total_votes,
+            'total_likes': total_likes,
+            'average_note': round(average_note, 2),
+            'votes': votes_list
+        }
+    
+    except Product.DoesNotExist:
+        return {'success': False, 'error': 'Product not found'}
+
+
+def get_product_likes_count(product_id: int):
+    """
+    Récupère le nombre de likes d'un produit
+    Retourne aussi les statistiques rapides
+    """
+    try:
+        product = Product.objects.get(id=product_id)
+        from apps.models.vote import Vote
+        
+        total_votes = Vote.objects.filter(product=product).count()
+        total_likes = Vote.objects.filter(product=product, like=True).count()
+        
+        voted_users = Vote.objects.filter(product=product).values_list('user__username', flat=True)
+        
+        return {
+            'success': True,
+            'product_id': product_id,
+            'product_name': product.name,
+            'total_votes': total_votes,
+            'total_likes': total_likes,
+            'like_percentage': round((total_likes / total_votes * 100), 2) if total_votes > 0 else 0,
+            'users_who_voted': list(voted_users)
+        }
+    
+    except Product.DoesNotExist:
+        return {'success': False, 'error': 'Product not found'}
+
+
+def get_top_products_by_sales(limit: int = 5):
+    """
+    Récupère les N produits les plus vendus
+    Trié par purchase_count décroissant
+    Inclut: revenu généré, stock restant, prix
+    """
+    try:
+        top_products = Product.objects.all().order_by('-purchase_count')[:limit]
+        
+        products_list = []
+        for product in top_products:
+            revenue = float(product.purchase_count * product.current_price)
+            products_list.append({
+                'id': product.id,
+                'name': product.name,
+                'description': product.description,
+                'category': product.category.name,
+                'stock': product.stock,
+                'base_stock': product.base_stock,
+                'base_price': float(product.base_price),
+                'current_price': float(product.current_price),
+                'purchase_count': product.purchase_count,
+                'view_count': product.view_count,
+                'revenue_generated': revenue,
+                'popularity_score': product.popularity_score,
+                'price_change_percent': product.price_change_percentage
+            })
+        
+        total_revenue = sum(p['revenue_generated'] for p in products_list)
+        total_purchases = sum(p['purchase_count'] for p in products_list)
+        
+        return {
+            'success': True,
+            'limit': limit,
+            'top_products': products_list,
+            'summary': {
+                'total_revenue': round(total_revenue, 2),
+                'total_purchases': total_purchases,
+                'average_revenue_per_product': round(total_revenue / len(products_list), 2) if products_list else 0
+            }
+        }
+    
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
