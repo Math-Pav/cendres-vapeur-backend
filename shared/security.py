@@ -4,6 +4,8 @@ import random
 import string
 from datetime import datetime, timedelta
 from django.conf import settings
+from fastapi import Cookie
+
 
 
 def generate_2fa_code():
@@ -43,15 +45,18 @@ def verify_jwt_token(token):
         return None 
 
 
-def get_current_payload(authorization: str = Header(...)):
+def get_current_payload(authorization: str = Header(None), access_token: str = Cookie(None)):
     """
     Dépendance FastAPI pour extraire et vérifier le JWT token
     Retourne le payload du token ou lève une exception si invalide
     """
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authorization header")
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+    elif access_token:
+        token = access_token
+    else:
+        raise HTTPException(status_code=401, detail="No authentication provided")
     
-    token = authorization.split(" ")[1]
     payload = verify_jwt_token(token)
     
     if payload is None:

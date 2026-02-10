@@ -1,6 +1,8 @@
 import os
 import django
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
 django.setup()
@@ -17,6 +19,14 @@ from api.router.vote import router as vote_router
 from api.router.mail import router as mail_router
 
 app = FastAPI(title="Orders API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True, 
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(auth_router)
 app.include_router(order_router)
