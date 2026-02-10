@@ -32,5 +32,5 @@ def delete_colony_event(event_id: int):
     if not event:
         return False
     event.delete()
-    create_log("Colony event deleted", data["title"])
+    create_log("Colony event deleted", event_id)
     return True
