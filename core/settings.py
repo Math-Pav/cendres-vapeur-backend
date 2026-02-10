@@ -16,12 +16,10 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'apps',
-    'rest_framework',  # Pour créer l'API
-    'corsheaders',     # Pour gérer les CORS
+    'rest_framework',  
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # <--- AJOUT OBLIGATOIRE ICI (En premier)
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -68,9 +66,10 @@ USE_TZ = True
 STATIC_URL = '/static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Configuration Custom User (Si tu utilises ton propre modèle utilisateur)
+AUTH_USER_MODEL = 'apps.CustomUser' 
+
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20
 }
-
-CORS_ALLOW_ALL_ORIGINS = True

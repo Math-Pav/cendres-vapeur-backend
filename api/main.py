@@ -1,7 +1,7 @@
 import os
 import django
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware # Import nécessaire pour la sécurité
+
 
 # 1. Init Django
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
@@ -22,15 +22,7 @@ from api.router.vote import router as vote_router
 # 3. Création de l'application
 app = FastAPI(title="Orders API")
 
-# --- AJOUT INDISPENSABLE : CORS ---
-# Cela permet à ton Frontend de se connecter sans être rejeté
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # En prod, on mettra l'URL du site, mais en dev "*" c'est bien
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
 
 # 4. Activation des routes
 app.include_router(auth_router)
