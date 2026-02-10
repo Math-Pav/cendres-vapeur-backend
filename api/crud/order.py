@@ -3,17 +3,15 @@ from apps.models.customUser import CustomUser
 from shared.pdf_generator import save_invoice_to_file
 from apps.classes.log import create_log
 
-
-
 def list_orders():
     return Order.objects.select_related("user").all()
 
 def get_order(order_id: int):
     return Order.objects.filter(id=order_id).first()
 
-def create_order(data: dict):
+def create_order(data: dict, user_id: int = None):
     user = CustomUser.objects.get(id=data["user_id"])
-    create_log("Order created", data["user_id"])
+    create_log("Order created", user_id)
     user = CustomUser.objects.get(id=data["user_id"])
     return Order.objects.create(
         status=data["status"],
@@ -23,7 +21,7 @@ def create_order(data: dict):
         created_at=data.get("created_at")
     )
 
-def update_order(order_id: int, data: dict):
+def update_order(order_id: int, data: dict, user_id: int = None):
     order = Order.objects.filter(id=order_id).first()
     if not order:
         return None
@@ -35,17 +33,16 @@ def update_order(order_id: int, data: dict):
             setattr(order, field, value)
 
     order.save()
-    create_log("Order updated", data["user_id"])
+    create_log("Order updated", user_id)
     return order
 
-def delete_order(order_id: int):
+def delete_order(order_id: int, user_id: int = None):
     order = Order.objects.filter(id=order_id).first()
     if not order:
         return False
     order.delete()
-    create_log("Order deleted", order.user_id)
+    create_log("Order deleted", user_id)
     return True
-
 
 def get_or_create_cart(user_id: int):
     """Récupère ou crée le panier (commande PENDING) de l'utilisateur"""
@@ -56,7 +53,6 @@ def get_or_create_cart(user_id: int):
         defaults={'total_amount': 0}
     )
     return cart
-
 
 def add_product_to_cart(user_id: int, product_id: int, quantity: int):
     """Ajoute un produit au panier de l'utilisateur"""
@@ -97,7 +93,6 @@ def add_product_to_cart(user_id: int, product_id: int, quantity: int):
     
     return order_item
 
-
 def update_cart_total(cart):
     """Met à jour le montant total du panier"""
     total = sum(
@@ -106,7 +101,6 @@ def update_cart_total(cart):
     )
     cart.total_amount = total
     cart.save()
-
 
 def remove_product_from_cart(user_id: int, product_id: int):
     """Retire complètement un produit du panier"""
@@ -124,7 +118,6 @@ def remove_product_from_cart(user_id: int, product_id: int):
     update_cart_total(cart)
     
     return True
-
 
 def update_cart_item_quantity(user_id: int, product_id: int, new_quantity: int):
     """Met à jour la quantité d'un produit dans le panier"""
@@ -157,7 +150,6 @@ def update_cart_item_quantity(user_id: int, product_id: int, new_quantity: int):
     
     return order_item
 
-
 def clear_cart(user_id: int):
     """Vide complètement le panier de l'utilisateur"""
     cart = get_or_create_cart(user_id)
@@ -168,7 +160,6 @@ def clear_cart(user_id: int):
     cart.save()
     
     return cart
-
 
 def finalize_order(order_id: int):
     """
@@ -196,16 +187,13 @@ def finalize_order(order_id: int):
     
     return order
 
-
-# Codes de réduction disponibles
 DISCOUNT_CODES = {
-    'WELCOME10': 10,        # 10% de réduction
-    'PROMO15': 15,          # 15% de réduction
-    'SPECIAL20': 20,        # 20% de réduction
-    'VIP25': 25,            # 25% de réduction
-    'NEWUSER5': 5,          # 5% de réduction
+    'WELCOME10': 10,     
+    'PROMO15': 15,        
+    'SPECIAL20': 20,        
+    'VIP25': 25,            
+    'NEWUSER5': 5,          
 }
-
 
 def apply_discount_code(order_id: int, code: str):
     """
@@ -258,7 +246,6 @@ def apply_discount_code(order_id: int, code: str):
         'total_amount': float(new_total),
         'savings': f'{percentage}%'
     }
-
 
 def remove_discount(order_id: int):
     """Retire la remise d'une commande"""

@@ -1,6 +1,5 @@
 from apps.models import CustomUser
-from django.contrib.auth.hashers import make_password
-from apps.classes.log import create_log
+import bcrypt
 from apps.classes.log import create_log
 
 def list_users():
@@ -57,18 +56,19 @@ def list_users_advanced(search: str = None, role: str = None, page: int = 1, lim
 def get_user(user_id: int):
     return CustomUser.objects.filter(id=user_id).first()
 
-def create_user(data: dict):
-    create_log("User created", data["username"])
+def create_user(data: dict, user_id: int = None):
+    create_log("User created", user_id)
+    hashed_password = bcrypt.hashpw(data["password"].encode(), bcrypt.gensalt()).decode()
     return CustomUser.objects.create(
         username=data["username"],
         email=data["email"],
-        password=make_password(data["password"]),
+        password=hashed_password,
         role="USER",
         biography=data.get("biography"),
         avatar_url=data.get("avatar_url")
     )
 
-def update_user(user_id: int, data: dict):
+def update_user(user_id: int, data: dict, current_user_id: int = None):
     user = CustomUser.objects.filter(id=user_id).first()
     if not user:
         return None
@@ -77,13 +77,13 @@ def update_user(user_id: int, data: dict):
         setattr(user, field, value)
 
     user.save()
-    create_log("User updated", user.username)
+    create_log("User updated", current_user_id)
     return user
 
-def delete_user(user_id: int):
+def delete_user(user_id: int, current_user_id: int = None):
     user = CustomUser.objects.filter(id=user_id).first()
     if not user:
         return False
     user.delete()
-    create_log("User deleted", user.username)
+    create_log("User deleted", current_user_id)
     return True

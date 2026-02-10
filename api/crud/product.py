@@ -91,12 +91,12 @@ def list_products_advanced(search: str = None, category_id: int = None, min_pric
 def get_product(product_id: int):
     return Product.objects.filter(id=product_id).first()
 
-def create_product(data: dict):
+def create_product(data: dict, user_id: int = None):
     category = Category.objects.get(id=data["category_id"])
     
     stock = data["stock"]
     
-    create_log("Product created", data["name"])
+    create_log("Product created", user_id)
     
     return Product.objects.create(
         name=data["name"],
@@ -113,7 +113,7 @@ def create_product(data: dict):
         price_change_percentage=0.0
     )
 
-def update_product(product_id: int, data: dict):
+def update_product(product_id: int, data: dict, user_id: int = None):
     product = Product.objects.filter(id=product_id).first()
     if not product:
         return None
@@ -123,15 +123,15 @@ def update_product(product_id: int, data: dict):
             setattr(product, field, value)
 
     product.save()
-    create_log("Product updated", product.name)
+    create_log("Product updated", user_id)
     return product
 
-def delete_product(product_id: int):
+def delete_product(product_id: int, user_id: int = None):
     product = Product.objects.filter(id=product_id).first()
     if not product:
         return False
     product.delete()
-    create_log("Product deleted", product.name)
+    create_log("Product deleted", user_id)
     return True
 
 def record_product_view(product_id: int):
@@ -224,7 +224,6 @@ def record_product_purchase(product_id: int, quantity: int = 1):
     except Product.DoesNotExist:
         return {'success': False, 'error': 'Product not found'}
 
-
 def get_product_price_info(product_id: int):
     """
     Récupère les infos complètes du prix et de la fluctuation d'un produit
@@ -305,7 +304,6 @@ def get_product_votes(product_id: int):
     except Product.DoesNotExist:
         return {'success': False, 'error': 'Product not found'}
 
-
 def get_product_likes_count(product_id: int):
     """
     Récupère le nombre de likes d'un produit
@@ -332,7 +330,6 @@ def get_product_likes_count(product_id: int):
     
     except Product.DoesNotExist:
         return {'success': False, 'error': 'Product not found'}
-
 
 def get_top_products_by_sales(limit: int = 5):
     """

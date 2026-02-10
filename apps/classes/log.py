@@ -1,9 +1,25 @@
 from apps.models.log import Log
+from apps.models.customUser import CustomUser
 
-
-def create_log(message: str, user) -> Log:
-    """Crée une entrée de log"""
-    log = Log(message=message, user=user)
+def create_log(message: str, user=None) -> Log:
+    """Crée une entrée de log
+    
+    Args:
+        message: Message du log
+        user: Objet utilisateur ou ID utilisateur
+    """
+    user_obj = None
+    
+    if user is not None:
+        if isinstance(user, int):
+            try:
+                user_obj = CustomUser.objects.get(id=user)
+            except CustomUser.DoesNotExist:
+                user_obj = None
+        else:
+            user_obj = user
+    
+    log = Log(message=message, user=user_obj)
     log.save()
     return log
 

@@ -34,8 +34,8 @@ def get_one_category(category_id: int):
         raise HTTPException(status_code=404, detail="Category not found")
     return category
 
-@router.post("", response_model=CategoryOut, dependencies=[Depends(require_roles("USER", "EDITOR" ,"ADMIN"))])
-def create_new_category(category: CategoryCreate):
+@router.post("", response_model=CategoryOut)
+def create_new_category(category: CategoryCreate, payload = Depends(require_roles("USER", "EDITOR" ,"ADMIN"))):
     """
     Docstring for create_new_category
 
@@ -46,10 +46,10 @@ def create_new_category(category: CategoryCreate):
     :param category: Description\n
     :type category: CategoryCreate
     """
-    return create_category(category.model_dump())
+    return create_category(category.model_dump(), user_id=payload['id'])
 
-@router.put("/{category_id}", response_model=CategoryOut, dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
-def update_existing_category(category_id: int, category: CategoryCreate):
+@router.put("/{category_id}", response_model=CategoryOut)
+def update_existing_category(category_id: int, category: CategoryCreate, payload = Depends(require_roles("ADMIN", "EDITOR"))):
     """
     Docstring for update_existing_category
 
@@ -60,13 +60,13 @@ def update_existing_category(category_id: int, category: CategoryCreate):
     :param category: Description\n
     :type category: CategoryCreate
     """
-    updated = update_category(category_id, category.model_dump())
+    updated = update_category(category_id, category.model_dump(), user_id=payload['id'])
     if not updated:
         raise HTTPException(status_code=404, detail="Category not found")
     return updated
 
-@router.delete("/{category_id}", dependencies=[Depends(require_roles("ADMIN"))])
-def delete_existing_category(category_id: int):
+@router.delete("/{category_id}")
+def delete_existing_category(category_id: int, payload = Depends(require_roles("ADMIN"))):
     """
     Docstring for delete_existing_category
 
@@ -75,6 +75,6 @@ def delete_existing_category(category_id: int):
     :param category_id: Description\n
     :type category_id: int
     """
-    if not delete_category(category_id):
+    if not delete_category(category_id, user_id=payload['id']):
         raise HTTPException(status_code=404, detail="Category not found")
     return {"deleted": True}
