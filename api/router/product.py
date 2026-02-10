@@ -9,7 +9,10 @@ from api.crud.product import (
     delete_product,
     record_product_view,
     record_product_purchase,
-    get_product_price_info
+    get_product_price_info,
+    get_product_votes,
+    get_product_likes_count,
+    get_top_products_by_sales
 )
 from shared.security import require_roles
 
@@ -86,6 +89,62 @@ def register_product_purchase(product_id: int, quantity: int = 1):
         status_code = 400 if 'stock' in error_msg.lower() else 404
         raise HTTPException(status_code=status_code, detail=error_msg)
     
+    return result
+
+
+@router.get("/{product_id}/votes", dependencies=[Depends(require_roles("USER", "EDITOR" ,"ADMIN"))])
+def get_product_reviews(product_id: int):
+    """
+    Récupère tous les votes, notes et commentaires d'un produit
+    Affiche les détails de chaque vote avec infos utilisateur
+    
+    Retourne:
+    - Tous les votes avec notes, commentaires et likes
+    - Contexte statistique (nombre total, moyenne des notes)
+    """
+    result = get_product_votes(product_id)
+    if not result.get('success'):
+        raise HTTPException(status_code=404, detail=result.get('error', 'Product not found'))
+    return result
+
+
+@router.get("/{product_id}/likes-count", dependencies=[Depends(require_roles("USER", "EDITOR" ,"ADMIN"))])
+def get_likes_summary(product_id: int):
+    """
+    Récupère le nombre de likes et statistiques rapides d'un produit
+    
+    Retourne:
+    - Nombre total de likes
+    - Nombre total de votes
+    - Pourcentage de likes
+    - Liste des utilisateurs qui ont voté
+    """
+    result = get_product_likes_count(product_id)
+    if not result.get('success'):
+        raise HTTPException(status_code=404, detail=result.get('error', 'Product not found'))
+    return result
+
+
+@router.get("/top/sales", dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
+def get_top_selling_products(limit: int = 5):
+    """
+    Récupère les N produits les plus vendus avec statistiques complètes
+    
+    Query params:
+    - limit: nombre de produits à retourner (default: 5, max: 20)
+    
+    Retourne:
+    - Liste avec: nom, stock, prix, nombre achats, revenu généré
+    - Résumé: revenu total, achats totaux, revenu moyen
+    
+    Roles allowed: ADMIN, EDITOR
+    """
+    if limit < 1 or limit > 20:
+        raise HTTPException(status_code=400, detail="Limit must be between 1 and 20")
+    
+    result = get_top_products_by_sales(limit)
+    if not result.get('success'):
+        raise HTTPException(status_code=500, detail=result.get('error', 'Error fetching top products'))
     return result
 
 
