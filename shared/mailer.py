@@ -108,7 +108,61 @@ def send_welcome_email(email, username):
         return False
 
 
-# Modèle de données pour la missive
+def send_payment_confirmation_email(email, username, order_id, total_amount, transaction_id):
+    """Envoie un simple email de confirmation de paiement"""
+    sender_email = getattr(settings, 'EMAIL_HOST_USER', None)
+    
+    if not sender_email:
+        print(f"\n{'='*50}")
+        print(f"✅ CONFIRMATION DE PAIEMENT")
+        print(f"{'='*50}")
+        print(f"À: {username} ({email})")
+        print(f"Commande: CMD-{order_id:05d}")
+        print(f"Montant: {total_amount}€")
+        print(f"Transaction: {transaction_id}")
+        print(f"{'='*50}\n")
+        return True
+    
+    try:
+        subject = f"Commande confirmée - Numéro CMD-{order_id:05d}"
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial; color: #333;">
+                <h2 style="color: #28a745;">✓ Paiement approuvé</h2>
+                <p>Bonjour {username},</p>
+                <p>Votre commande a été payée avec succès!</p>
+                <br>
+                <p><strong>Numéro de commande:</strong> CMD-{order_id:05d}</p>
+                <p><strong>Montant:</strong> {total_amount}€</p>
+                <p><strong>Transaction:</strong> {transaction_id}</p>
+                <br>
+                <p>Vous recevrez bientôt les détails de livraison.</p>
+            </body>
+        </html>
+        """
+        
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = sender_email
+        message["To"] = email
+        message.attach(MIMEText(html_content, "html"))
+        
+        sender_password = getattr(settings, 'EMAIL_HOST_PASSWORD', None)
+        smtp_server = getattr(settings, 'EMAIL_HOST', None)
+        smtp_port = getattr(settings, 'EMAIL_PORT', 587)
+        
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, email, message.as_string())
+        
+        print(f"✅ Email de paiement envoyé à {email}")
+        return True
+    except Exception as e:
+        print(f"⚠️ Erreur email: {str(e)}")
+        return False
+
+
 class Missive(BaseModel):
     expediteur: EmailStr
     sujet: str
@@ -119,7 +173,6 @@ SMTP_SERVER = Env.SMTP_SERVER
 SMTP_PORT = Env.SMTP_PORT
 SMTP_USER = Env.SMTP_USER_ID
 SMTP_PASSWORD = Env.SMTP_PASSWORD
-
 
 async def envoyer_missive(missive: Missive):
     try:
