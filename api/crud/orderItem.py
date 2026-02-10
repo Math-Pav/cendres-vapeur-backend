@@ -1,4 +1,5 @@
 from apps.models import OrderItem
+from apps.classes.log import create_log
 
 def list_order_items():
     return OrderItem.objects.select_related("order", "product").all()

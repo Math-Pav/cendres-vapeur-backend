@@ -1,6 +1,7 @@
 from apps.models import CustomUser
 from django.contrib.auth.hashers import make_password
 from apps.classes.log import create_log
+from apps.classes.log import create_log
 
 def list_users():
     return CustomUser.objects.all()

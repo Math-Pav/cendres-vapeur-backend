@@ -1,4 +1,5 @@
 from apps.models import ShiftNote
+from apps.classes.log import create_log
 
 def list_shift_notes():
     return ShiftNote.objects.all()

@@ -1,6 +1,7 @@
 from apps.models import Product, Category
 from shared.price_fluctuation import PriceFluctuation
 from decimal import Decimal
+from apps.classes.log import create_log
 
 def list_products():
     return Product.objects.all()

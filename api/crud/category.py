@@ -1,3 +1,4 @@
+from apps.classes.log import create_log
 from apps.models import Category
 from datetime import datetime
 
@@ -33,6 +34,6 @@ def delete_category(category_id: int):
     if not category:
         return False
     category.delete()
-    create_log("Category deleted", data["name"])
+    create_log("Category deleted", category_id)
     return True
 
