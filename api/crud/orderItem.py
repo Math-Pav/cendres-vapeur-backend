@@ -7,6 +7,7 @@ def get_order_item(order_item_id: int):
     return OrderItem.objects.filter(id=order_item_id).first()
 
 def create_order_item(data: dict):
+    create_log("Order item created", data["product_id"])
     return OrderItem.objects.create(
         order_id=data["order_id"],
         product_id=data["product_id"],
@@ -23,6 +24,7 @@ def update_order_item(order_item_id: int, data: dict):
         setattr(item, field, value)
 
     item.save()
+    create_log("Order item updated", item.product_id)
     return item
 
 def delete_order_item(order_item_id: int):
@@ -30,4 +32,5 @@ def delete_order_item(order_item_id: int):
     if not item:
         return False
     item.delete()
+    create_log("Order item deleted", item.product_id)
     return True
