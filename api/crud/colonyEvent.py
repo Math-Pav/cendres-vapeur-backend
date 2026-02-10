@@ -7,6 +7,7 @@ def get_colony_event(event_id: int):
     return ColonyEvent.objects.filter(id=event_id).first()
 
 def create_colony_event(data: dict):
+    create_log("Colony event created", data["title"])
     return ColonyEvent.objects.create(
         title=data["title"],
         date=data["date"],
@@ -22,6 +23,7 @@ def update_colony_event(event_id: int, data: dict):
         setattr(event, field, value)
 
     event.save()
+    create_log("Colony event updated", data["title"])
     return event
 
 def delete_colony_event(event_id: int):
@@ -29,4 +31,5 @@ def delete_colony_event(event_id: int):
     if not event:
         return False
     event.delete()
+    create_log("Colony event deleted", data["title"])
     return True

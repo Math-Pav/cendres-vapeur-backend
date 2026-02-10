@@ -13,6 +13,8 @@ def create_product(data: dict):
     
     stock = data["stock"]
     
+    create_log("Product created", data["name"])
+    
     return Product.objects.create(
         name=data["name"],
         description=data.get("description"),
@@ -38,6 +40,7 @@ def update_product(product_id: int, data: dict):
             setattr(product, field, value)
 
     product.save()
+    create_log("Product updated", product.name)
     return product
 
 def delete_product(product_id: int):
@@ -45,6 +48,7 @@ def delete_product(product_id: int):
     if not product:
         return False
     product.delete()
+    create_log("Product deleted", product.name)
     return True
 
 def record_product_view(product_id: int):

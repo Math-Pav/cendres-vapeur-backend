@@ -9,6 +9,7 @@ def get_order(order_id: int):
 
 def create_order(data: dict):
     user = User.objects.get(id=data["user_id"])
+    create_log("Order created", data["user_id"])
     return Order.objects.create(
         status=data["status"],
         total_amount=data["total_amount"],
@@ -29,6 +30,7 @@ def update_order(order_id: int, data: dict):
             setattr(order, field, value)
 
     order.save()
+    create_log("Order updated", data["user_id"])
     return order
 
 def delete_order(order_id: int):
@@ -36,4 +38,5 @@ def delete_order(order_id: int):
     if not order:
         return False
     order.delete()
+    create_log("Order deleted", data["user_id"])
     return True
