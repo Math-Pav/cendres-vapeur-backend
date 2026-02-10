@@ -3,6 +3,7 @@ from api import router
 from api.schemas.product import ProductCreate, ProductOut
 from api.crud.product import (
     list_products,
+    list_products_advanced,
     get_product,
     create_product,
     update_product,
@@ -21,6 +22,39 @@ router = APIRouter(prefix="/products", tags=["Products"])
 @router.get("", response_model=list[ProductOut], dependencies=[Depends(require_roles("USER", "EDITOR" ,"ADMIN"))])
 def get_products():
     return list_products()
+
+@router.get("/search", response_model=dict, dependencies=[Depends(require_roles("USER", "EDITOR" ,"ADMIN"))])
+def search_products(search: str = None, category_id: int = None, min_price: float = None, 
+                   max_price: float = None, sort: str = 'id', order: str = 'asc',
+                   page: int = 1, limit: int = 20):
+    """
+    Recherche et filtre les produits avec pagination et tri
+    
+    Query params:
+    - search: Recherche par nom ou description
+    - category_id: Filtrer par catégorie (ID)
+    - min_price: Prix minimum
+    - max_price: Prix maximum
+    - sort: Champ de tri (id, name, price, popularity, stock, purchase_count)
+    - order: Ordre (asc, desc)
+    - page: Numéro de page (default: 1)
+    - limit: Résultats par page (default: 20, max: 100)
+    
+    Roles allowed: USER, EDITOR, ADMIN
+    """
+    result = list_products_advanced(
+        search=search,
+        category_id=category_id,
+        min_price=min_price,
+        max_price=max_price,
+        sort=sort,
+        order=order,
+        page=page,
+        limit=limit
+    )
+    if not result.get('success'):
+        raise HTTPException(status_code=500, detail=result.get('error', 'Error fetching products'))
+    return result
 
 @router.get("/{product_id}", response_model=ProductOut, dependencies=[Depends(require_roles("USER", "EDITOR" ,"ADMIN"))])
 def get_one_product(product_id: int):

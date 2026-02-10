@@ -6,6 +6,88 @@ from apps.classes.log import create_log
 def list_products():
     return Product.objects.all()
 
+def list_products_advanced(search: str = None, category_id: int = None, min_price: float = None, 
+                          max_price: float = None, sort: str = 'id', order: str = 'asc', 
+                          page: int = 1, limit: int = 20):
+    """
+    Liste les produits avec filtres, recherche, tri et pagination
+    
+    Args:
+        search: Recherche par nom ou description
+        category_id: Filtrer par catégorie (ID)
+        min_price: Prix minimum
+        max_price: Prix maximum
+        sort: Champ de tri (id, name, price, popularity, stock, purchase_count)
+        order: Ordre de tri (asc, desc)
+        page: Numéro de page (default: 1)
+        limit: Nombre de résultats par page (default: 20, max: 100)
+    """
+    query = Product.objects.all()
+    
+    if category_id:
+        query = query.filter(category_id=category_id)
+    
+    if search:
+        from django.db.models import Q
+        query = query.filter(Q(name__icontains=search) | Q(description__icontains=search))
+    
+    if min_price is not None:
+        query = query.filter(current_price__gte=min_price)
+    if max_price is not None:
+        query = query.filter(current_price__lte=max_price)
+    
+    sort_field = 'id'
+    if sort == 'name':
+        sort_field = 'name'
+    elif sort == 'price':
+        sort_field = 'current_price'
+    elif sort == 'popularity':
+        sort_field = 'popularity_score'
+    elif sort == 'stock':
+        sort_field = 'stock'
+    elif sort == 'purchase_count':
+        sort_field = 'purchase_count'
+    
+    if order.lower() == 'desc':
+        sort_field = '-' + sort_field
+    
+    query = query.order_by(sort_field)
+    
+    limit = min(int(limit), 100) 
+    page = max(int(page), 1) 
+    offset = (page - 1) * limit
+    
+    total_count = query.count()
+    products = query[offset:offset + limit]
+    
+    products_list = []
+    for product in products:
+        products_list.append({
+            'id': product.id,
+            'name': product.name,
+            'description': product.description,
+            'category_id': product.category_id,
+            'category_name': product.category.name,
+            'stock': product.stock,
+            'base_price': float(product.base_price),
+            'current_price': float(product.current_price),
+            'popularity_score': product.popularity_score,
+            'purchase_count': product.purchase_count,
+            'view_count': product.view_count,
+            'image': product.image.url if product.image else None
+        })
+    
+    return {
+        'success': True,
+        'pagination': {
+            'page': page,
+            'limit': limit,
+            'total_count': total_count,
+            'total_pages': (total_count + limit - 1) // limit
+        },
+        'products': products_list
+    }
+
 def get_product(product_id: int):
     return Product.objects.filter(id=product_id).first()
 
@@ -92,7 +174,6 @@ def record_product_view(product_id: int):
     
     except Product.DoesNotExist:
         return {'success': False, 'error': 'Product not found'}
-
 
 def record_product_purchase(product_id: int, quantity: int = 1):
     """

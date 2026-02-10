@@ -3,6 +3,7 @@ from api import router
 from api.schemas.user import UserCreate, UserOut
 from api.crud.user import (
     list_users,
+    list_users_advanced,
     get_user,
     create_user,
     update_user,
@@ -20,6 +21,24 @@ def get_users():
     Return a list of all users.
     """
     return list_users()
+
+@router.get("/search", response_model=dict, dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
+def search_users(search: str = None, role: str = None, page: int = 1, limit: int = 20):
+    """
+    Recherche et filtre les utilisateurs avec pagination
+    
+    Query params:
+    - search: Recherche par username ou email
+    - role: Filtrer par rôle (ADMIN, EDITOR, USER, INVITE)
+    - page: Numéro de page (default: 1)
+    - limit: Résultats par page (default: 20, max: 100)
+    
+    Roles allowed: ADMIN, EDITOR
+    """
+    result = list_users_advanced(search=search, role=role, page=page, limit=limit)
+    if not result.get('success'):
+        raise HTTPException(status_code=500, detail=result.get('error', 'Error fetching users'))
+    return result
 
 @router.get("/{user_id}", response_model=UserOut, dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
 def get_one_user(user_id: int):
