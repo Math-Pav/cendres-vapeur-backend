@@ -1,3 +1,4 @@
+from apps.classes.log import create_log
 from apps.models import Category
 from datetime import datetime
 
@@ -9,6 +10,7 @@ def get_category(category_id: int):
     return Category.objects.filter(id=category_id).first()
 
 def create_category(data: dict):
+    create_log("Category created", data["name"])
     return Category.objects.create(
         name=data["name"],
         description=data.get("description"),
@@ -24,6 +26,7 @@ def update_category(category_id: int, data: dict):
         setattr(category, field, value)
 
     category.save()
+    create_log("Category updated", data["name"])
     return category
 
 def delete_category(category_id: int):
@@ -31,5 +34,6 @@ def delete_category(category_id: int):
     if not category:
         return False
     category.delete()
+    create_log("Category deleted", category_id)
     return True
 

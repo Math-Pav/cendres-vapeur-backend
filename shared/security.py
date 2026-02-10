@@ -1,8 +1,11 @@
+from fastapi import Depends, HTTPException, status, Header
 import jwt
 import random
 import string
 from datetime import datetime, timedelta
 from django.conf import settings
+from fastapi import Cookie
+
 
 
 def generate_2fa_code():
@@ -40,3 +43,31 @@ def verify_jwt_token(token):
         return None  
     except jwt.InvalidTokenError:
         return None 
+
+
+def get_current_payload(authorization: str = Header(None), access_token: str = Cookie(None)):
+    """
+    Dépendance FastAPI pour extraire et vérifier le JWT token
+    Retourne le payload du token ou lève une exception si invalide
+    """
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+    elif access_token:
+        token = access_token
+    else:
+        raise HTTPException(status_code=401, detail="No authentication provided")
+    
+    payload = verify_jwt_token(token)
+    
+    if payload is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+    
+    return payload
+    
+
+def require_roles(*roles):
+    def _checker(payload = Depends(get_current_payload)):
+        if payload.get("role") not in roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+        return payload
+    return _checker

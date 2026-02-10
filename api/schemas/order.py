@@ -26,3 +26,47 @@ class OrderOut(OrderBase):
         if hasattr(v, "name"):
             return str(v.name)
         return str(v)
+
+
+class AddToCartRequest(BaseModel):
+    """Requête pour ajouter un produit au panier"""
+    product_id: int
+    quantity: int = 1
+
+
+class UpdateCartItemRequest(BaseModel):
+    """Requête pour modifier la quantité d'un article du panier"""
+    quantity: int
+
+    class Config:
+        from_attributes = True
+
+
+class CartItemResponse(BaseModel):
+    """Réponse pour un article du panier"""
+    id: int
+    product_id: int
+    quantity: int
+    unit_price_frozen: Decimal
+
+    class Config:
+        from_attributes = True
+
+
+class CartResponse(BaseModel):
+    """Réponse du panier avec ses articles"""
+    id: int
+    user_id: int
+    status: str
+    total_amount: Decimal
+    created_at: datetime
+    items: list[CartItemResponse] = []
+
+    class Config:
+        from_attributes = True
+
+
+class PaymentRequest(BaseModel):
+    """Requête pour simuler un paiement PayPal"""
+    paypal_email: str
+    approve: bool = True

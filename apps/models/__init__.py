@@ -1,6 +1,7 @@
 from .colonyEvent import ColonyEvent
 from .customUser import CustomUser
 from .category import Category
+from .log import Log
 from .order import Order
 from .orderItem import OrderItem
 from .product import Product
@@ -12,6 +13,7 @@ __all__ = [
     'ColonyEvent',
     'CustomUser',
     'Category',
+    'Log',
     'Order',
     'OrderItem',
     'Product',
