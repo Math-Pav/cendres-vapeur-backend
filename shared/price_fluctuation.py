@@ -1,9 +1,4 @@
-"""
-Algorithme de fluctuation des prix - Bourse du Cuivre
-Calcul basé sur l'offre et la demande
-"""
 from decimal import Decimal
-
 
 class PriceFluctuation:
     """

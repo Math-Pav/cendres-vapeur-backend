@@ -1,7 +1,6 @@
 from pydantic import BaseModel
 from datetime import date
 
-
 class ColonyEventBase(BaseModel):
     title: str
     date: date

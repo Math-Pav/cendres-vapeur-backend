@@ -38,8 +38,8 @@ def get_one_colony_event(colony_event_id: int):
         raise HTTPException(status_code=404, detail="Colony Event not found")
     return colony_event
 
-@router.post("", response_model=ColonyEventOut, dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
-def create_new_colony_event(colony_event: ColonyEventCreate):
+@router.post("", response_model=ColonyEventOut)
+def create_new_colony_event(colony_event: ColonyEventCreate, payload = Depends(require_roles("ADMIN", "EDITOR"))):
     """
     Docstring for create_new_colony_event
 
@@ -48,10 +48,10 @@ def create_new_colony_event(colony_event: ColonyEventCreate):
     :param colony_event: Description
     :type colony_event: ColonyEventCreate
     """
-    return create_colony_event(colony_event.model_dump())
+    return create_colony_event(colony_event.model_dump(), user_id=payload['id'])
 
-@router.put("/{colony_event_id}", response_model=ColonyEventOut, dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
-def update_existing_colony_event(colony_event_id: int, colony_event: ColonyEventCreate):
+@router.put("/{colony_event_id}", response_model=ColonyEventOut)
+def update_existing_colony_event(colony_event_id: int, colony_event: ColonyEventCreate, payload = Depends(require_roles("ADMIN", "EDITOR"))):
     """
     Docstring for update_existing_colony_event
 
@@ -62,13 +62,13 @@ def update_existing_colony_event(colony_event_id: int, colony_event: ColonyEvent
     :param colony_event: Description
     :type colony_event: ColonyEventCreate
     """
-    updated = update_colony_event(colony_event_id, colony_event.model_dump())
+    updated = update_colony_event(colony_event_id, colony_event.model_dump(), user_id=payload['id'])
     if not updated:
         raise HTTPException(status_code=404, detail="Colony Event not found")
     return updated
 
-@router.delete("/{colony_event_id}", dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
-def delete_existing_colony_event(colony_event_id: int):
+@router.delete("/{colony_event_id}")
+def delete_existing_colony_event(colony_event_id: int, payload = Depends(require_roles("ADMIN", "EDITOR"))):
     """
     Docstring for delete_existing_colony_event
 
@@ -77,7 +77,7 @@ def delete_existing_colony_event(colony_event_id: int):
     :param colony_event_id: Description
     :type colony_event_id: int
     """
-    if not delete_colony_event(colony_event_id):
+    if not delete_colony_event(colony_event_id, user_id=payload['id']):
         raise HTTPException(status_code=404, detail="Colony Event not found")
     return {"deleted": True}
 

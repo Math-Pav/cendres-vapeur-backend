@@ -55,8 +55,8 @@ def get_one_user(user_id: int):
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
-@router.post("", response_model=UserOut, dependencies=[Depends(require_roles("ADMIN"))])
-def create_new_user(user: UserCreate):
+@router.post("", response_model=UserOut)
+def create_new_user(user: UserCreate, payload = Depends(require_roles("ADMIN"))):
     """
     Docstring for create_new_user
 
@@ -65,10 +65,10 @@ def create_new_user(user: UserCreate):
     :param user: Description
     :type user: UserCreate
     """
-    return create_user(user.model_dump())
+    return create_user(user.model_dump(), user_id=payload['id'])
 
-@router.put("/{user_id}", response_model=UserOut, dependencies=[Depends(require_roles("ADMIN"))])
-def update_existing_user(user_id: int, user: UserCreate):
+@router.put("/{user_id}", response_model=UserOut)
+def update_existing_user(user_id: int, user: UserCreate, payload = Depends(require_roles("ADMIN"))):
     """
     Docstring for update_existing_user
 
@@ -79,13 +79,13 @@ def update_existing_user(user_id: int, user: UserCreate):
     :param user: Description
     :type user: UserCreate
     """
-    updated = update_user(user_id, user.model_dump())
+    updated = update_user(user_id, user.model_dump(), current_user_id=payload['id'])
     if not updated:
         raise HTTPException(status_code=404, detail="User not found")
     return updated
 
-@router.delete("/{user_id}", dependencies=[Depends(require_roles("ADMIN"))])
-def delete_existing_user(user_id: int):
+@router.delete("/{user_id}")
+def delete_existing_user(user_id: int, payload = Depends(require_roles("ADMIN"))):
     """
     Docstring for delete_existing_user
 
@@ -94,6 +94,6 @@ def delete_existing_user(user_id: int):
     :param user_id: Description
     :type user_id: int
     """
-    if not delete_user(user_id):
+    if not delete_user(user_id, current_user_id=payload['id']):
         raise HTTPException(status_code=404, detail="User not found")
     return {"deleted": True}

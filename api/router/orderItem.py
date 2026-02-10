@@ -22,19 +22,19 @@ def get_one_order_item(order_item_id: int):
         raise HTTPException(status_code=404, detail="OrderItem not found")
     return order_item
 
-@router.post("", response_model=OrderItemOut, dependencies=[Depends(require_roles("EDITOR" ,"ADMIN"))])
-def create_new_order_item(order_item: OrderItemCreate):
-    return create_order_item(order_item.model_dump())
+@router.post("", response_model=OrderItemOut)
+def create_new_order_item(order_item: OrderItemCreate, payload = Depends(require_roles("EDITOR" ,"ADMIN"))):
+    return create_order_item(order_item.model_dump(), user_id=payload['id'])
 
-@router.put("/{order_item_id}", response_model=OrderItemOut, dependencies=[Depends(require_roles("EDITOR" ,"ADMIN"))])
-def update_existing_order_item(order_item_id: int, order_item: OrderItemCreate):
-    updated = update_order_item(order_item_id, order_item.model_dump())
+@router.put("/{order_item_id}", response_model=OrderItemOut)
+def update_existing_order_item(order_item_id: int, order_item: OrderItemCreate, payload = Depends(require_roles("EDITOR" ,"ADMIN"))):
+    updated = update_order_item(order_item_id, order_item.model_dump(), user_id=payload['id'])
     if not updated:
         raise HTTPException(status_code=404, detail="OrderItem not found")
     return updated
 
-@router.delete("/{order_item_id}", dependencies=[Depends(require_roles("ADMIN"))])
-def delete_existing_order_item(order_item_id: int):
-    if not delete_order_item(order_item_id):
+@router.delete("/{order_item_id}")
+def delete_existing_order_item(order_item_id: int, payload = Depends(require_roles("ADMIN"))):
+    if not delete_order_item(order_item_id, user_id=payload['id']):
         raise HTTPException(status_code=404, detail="OrderItem not found")
     return {"deleted": True}
