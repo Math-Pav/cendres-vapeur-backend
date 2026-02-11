@@ -63,7 +63,7 @@ def create_user(data: dict, user_id: int = None):
         username=data["username"],
         email=data["email"],
         password=hashed_password,
-        role="USER",
+        role=data["role"],
         biography=data.get("biography"),
         avatar_url=data.get("avatar_url")
     )
