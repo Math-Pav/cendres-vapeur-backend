@@ -18,6 +18,11 @@ from api.router.product import router as product_router
 from api.router.shiftNote import router as shift_note_router
 # --- AJOUT DU VOTE ICI ---
 from api.router.vote import router as vote_router
+<<<<<<< HEAD
+=======
+from api.router.mail import router as mail_router
+from api.router.log import router as log_router
+>>>>>>> 74708e4e68669d98c2615d933662b7a9b3ba9fa4
 
 # 3. Création de l'application
 app = FastAPI(title="Orders API")
@@ -33,5 +38,11 @@ app.include_router(colony_event_router)
 app.include_router(order_item_router)
 app.include_router(product_router)
 app.include_router(shift_note_router)
+<<<<<<< HEAD
 # --- ACTIVATION DU VOTE ---
 app.include_router(vote_router)
+=======
+app.include_router(vote_router)
+app.include_router(mail_router)
+app.include_router(log_router)
+>>>>>>> 74708e4e68669d98c2615d933662b7a9b3ba9fa4

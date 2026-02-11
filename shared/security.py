@@ -6,12 +6,9 @@ from datetime import datetime, timedelta
 from django.conf import settings
 from fastapi import Cookie
 
-
-
 def generate_2fa_code():
     """Génère un code numérique aléatoire de 6 chiffres"""
     return ''.join(random.choices(string.digits, k=6))
-
 
 def generate_jwt_token(user):
     """
@@ -30,7 +27,6 @@ def generate_jwt_token(user):
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
     return token
 
-
 def verify_jwt_token(token):
     """
     Vérifie et décode un JWT token
@@ -43,7 +39,6 @@ def verify_jwt_token(token):
         return None  
     except jwt.InvalidTokenError:
         return None 
-
 
 def get_current_payload(authorization: str = Header(None), access_token: str = Cookie(None)):
     """
@@ -64,7 +59,6 @@ def get_current_payload(authorization: str = Header(None), access_token: str = C
     
     return payload
     
-
 def require_roles(*roles):
     def _checker(payload = Depends(get_current_payload)):
         if payload.get("role") not in roles:

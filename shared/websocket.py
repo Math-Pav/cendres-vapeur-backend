@@ -1,11 +1,8 @@
 from fastapi import WebSocket, WebSocketDisconnect
 from typing import List, Dict
 
-
-
 class ConnectionManager:
     def __init__(self):
-        # Dictionnaire des connexions actives avec leurs métadonnées
         self.active_connections: Dict[int, WebSocket] = {}
         self.connection_count = 0
 
@@ -21,7 +18,6 @@ class ConnectionManager:
             self.connection_count -= 1
 
     async def broadcast(self, message: str, exclude_client_id: int = None):
-        # Envoi instantané à tous les membres du secteur
         disconnected_clients = []
         for client_id, connection in self.active_connections.items():
             if exclude_client_id and client_id == exclude_client_id:
@@ -29,10 +25,8 @@ class ConnectionManager:
             try:
                 await connection.send_text(message)
             except:
-                # Marquer les connexions déconnectées pour nettoyage
                 disconnected_clients.append(client_id)
         
-        # Nettoyer les connexions déconnectées
         for client_id in disconnected_clients:
             self.disconnect(client_id)
     
@@ -60,7 +54,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: int):
     try:
         while True:
             data = await websocket.receive_text()
-            # Formatage immersif pour le Journal des survivants
             message_format = f"Citoyen {client_id} : {data}"
             await manager.broadcast(message_format, exclude_client_id=client_id)
     except WebSocketDisconnect:

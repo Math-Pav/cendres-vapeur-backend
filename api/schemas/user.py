@@ -4,6 +4,7 @@ class UserBase(BaseModel):
     username: str
     email: str
     password: str
+    role: str
     avatar_url: str | None = None
     biography: str | None = None
 
@@ -20,4 +21,3 @@ class UserOut(BaseModel):
 
     class Config:
         from_attributes = True
-

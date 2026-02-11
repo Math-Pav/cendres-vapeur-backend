@@ -9,25 +9,20 @@ from apps.models.twoFactorCode import TwoFactorCode
 from shared.security import generate_2fa_code, generate_jwt_token, require_roles
 from shared.mailer import send_2fa_code_email, send_welcome_email
 
-
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
 
 class LoginRequest(BaseModel):
     email: str
     password: str
 
-
 class Verify2FARequest(BaseModel):
     user_id: int
     code: str
-
 
 class RegisterRequest(BaseModel):
     username: str
     email: str
     password: str
-
 
 class UserResponse(BaseModel):
     id: int
@@ -36,7 +31,6 @@ class UserResponse(BaseModel):
     role: str
     avatar_url: str | None = None
     biography: str | None = None
-
 
 @router.post("/login/")
 def login(data: LoginRequest):
@@ -84,7 +78,6 @@ def login(data: LoginRequest):
         "expiry_minutes": 10
     }
 
-
 @router.post("/verify-2fa/")
 def verify_2fa(data: Verify2FARequest):
     """
@@ -117,7 +110,7 @@ def verify_2fa(data: Verify2FARequest):
             detail="Code 2FA expiré"
         )
     
-    create_log("2FA verified", user.username)
+    create_log("2FA verified", user)
     token = generate_jwt_token(user)
     
     two_fa.delete()
@@ -136,7 +129,6 @@ def verify_2fa(data: Verify2FARequest):
         },
         "expires_in": "24h"
     }
-
 
 @router.post("/register/")
 def register(data: RegisterRequest):
@@ -181,7 +173,6 @@ def register(data: RegisterRequest):
         "message": "Utilisateur créé avec succès"
     }
 
-
 @router.get("/users/", dependencies=[Depends(require_roles("ADMIN"))])
 def users_list():
     """Liste tous les utilisateurs (test)"""
@@ -190,4 +181,3 @@ def users_list():
         "success": True,
         "users": list(users)
     }
-

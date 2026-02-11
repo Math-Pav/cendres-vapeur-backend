@@ -27,7 +27,6 @@ class OrderOut(OrderBase):
             return str(v.name)
         return str(v)
 
-
 class AddToCartRequest(BaseModel):
     """Requête pour ajouter un produit au panier"""
     product_id: int
@@ -41,7 +40,6 @@ class UpdateCartItemRequest(BaseModel):
     class Config:
         from_attributes = True
 
-
 class CartItemResponse(BaseModel):
     """Réponse pour un article du panier"""
     id: int
@@ -51,7 +49,6 @@ class CartItemResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class CartResponse(BaseModel):
     """Réponse du panier avec ses articles"""
@@ -64,7 +61,6 @@ class CartResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class PaymentRequest(BaseModel):
     """Requête pour simuler un paiement PayPal"""
