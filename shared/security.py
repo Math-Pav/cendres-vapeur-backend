@@ -4,12 +4,11 @@ import random
 import string
 from datetime import datetime, timedelta
 from django.conf import settings
-
+from fastapi import Cookie
 
 def generate_2fa_code():
     """Génère un code numérique aléatoire de 6 chiffres"""
     return ''.join(random.choices(string.digits, k=6))
-
 
 def generate_jwt_token(user):
     """
@@ -28,7 +27,6 @@ def generate_jwt_token(user):
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
     return token
 
-
 def verify_jwt_token(token):
     """
     Vérifie et décode un JWT token
@@ -42,16 +40,18 @@ def verify_jwt_token(token):
     except jwt.InvalidTokenError:
         return None 
 
-
-def get_current_payload(authorization: str = Header(...)):
+def get_current_payload(authorization: str = Header(None), access_token: str = Cookie(None)):
     """
     Dépendance FastAPI pour extraire et vérifier le JWT token
     Retourne le payload du token ou lève une exception si invalide
     """
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authorization header")
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+    elif access_token:
+        token = access_token
+    else:
+        raise HTTPException(status_code=401, detail="No authentication provided")
     
-    token = authorization.split(" ")[1]
     payload = verify_jwt_token(token)
     
     if payload is None:
@@ -59,7 +59,6 @@ def get_current_payload(authorization: str = Header(...)):
     
     return payload
     
-
 def require_roles(*roles):
     def _checker(payload = Depends(get_current_payload)):
         if payload.get("role") not in roles:

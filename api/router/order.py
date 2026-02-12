@@ -18,7 +18,9 @@ from api.crud.order import (
     add_product_to_cart,
     remove_product_from_cart,
     update_cart_item_quantity,
-    clear_cart
+    clear_cart,
+    apply_discount_code,
+    remove_discount
 )
 from shared.pdf_generator import generate_invoice_pdf
 from shared.paypal_simulator import simulate_paypal_payment
@@ -38,23 +40,22 @@ def get_one_order(order_id: int):
         raise HTTPException(status_code=404, detail="Order not found")
     return order
 
-@router.post("", response_model=OrderOut, dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
-def create_new_order(order: OrderCreate):
-    return create_order(order.model_dump())
+@router.post("", response_model=OrderOut)
+def create_new_order(order: OrderCreate, payload = Depends(require_roles("ADMIN", "EDITOR"))):
+    return create_order(order.model_dump(), user_id=payload['id'])
 
-@router.put("/{order_id}", response_model=OrderOut, dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
-def update_existing_order(order_id: int, order: OrderCreate):
-    updated = update_order(order_id, order.model_dump())
+@router.put("/{order_id}", response_model=OrderOut)
+def update_existing_order(order_id: int, order: OrderCreate, payload = Depends(require_roles("ADMIN", "EDITOR"))):
+    updated = update_order(order_id, order.model_dump(), user_id=payload['id'])
     if not updated:
         raise HTTPException(status_code=404, detail="Order not found")
     return updated
 
-@router.delete("/{order_id}", dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
-def delete_existing_order(order_id: int):
-    if not delete_order(order_id):
+@router.delete("/{order_id}")
+def delete_existing_order(order_id: int, payload = Depends(require_roles("ADMIN", "EDITOR"))):
+    if not delete_order(order_id, user_id=payload['id']):
         raise HTTPException(status_code=404, detail="Order not found")
     return {"deleted": True}
-
 
 @router.post("/cart/add", dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
 def add_to_cart(user_id: int, request: AddToCartRequest):
@@ -83,7 +84,6 @@ def add_to_cart(user_id: int, request: AddToCartRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/cart/{user_id}", response_model=CartResponse, dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
 def get_user_cart(user_id: int):
@@ -163,7 +163,6 @@ def remove_from_cart(user_id: int, product_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.delete("/cart/{user_id}", dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
 def empty_cart(user_id: int):
     """Vide complètement le panier de l'utilisateur"""
@@ -182,7 +181,6 @@ def empty_cart(user_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/{order_id}/invoice", dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
 def download_invoice(order_id: int):
     """Télécharge la facture PDF d'une commande"""
@@ -198,7 +196,6 @@ def download_invoice(order_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post("/{order_id}/payment", dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
 def process_paypal_payment(order_id: int, request: PaymentRequest):
     """
@@ -211,5 +208,29 @@ def process_paypal_payment(order_id: int, request: PaymentRequest):
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{order_id}/apply-discount", dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
+def apply_discount(order_id: int, discount_code: str):
+    """
+    Applique un code de réduction à une commande
+    """
+    try:
+        result = apply_discount_code(order_id, discount_code)
+        if not result['success']:
+            raise HTTPException(status_code=400, detail=result['message'])
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/{order_id}/remove-discount", dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
+def remove_discount_endpoint(order_id: int):
+    """Retire la remise d'une commande"""
+    try:
+        result = remove_discount(order_id)
+        if not result['success']:
+            raise HTTPException(status_code=400, detail=result['message'])
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,8 +1,7 @@
 from apps.models import Order, OrderItem, Product
 from apps.models.customUser import CustomUser
 from shared.pdf_generator import save_invoice_to_file
-
-
+from apps.classes.log import create_log
 
 def list_orders():
     return Order.objects.select_related("user").all()
@@ -10,7 +9,9 @@ def list_orders():
 def get_order(order_id: int):
     return Order.objects.filter(id=order_id).first()
 
-def create_order(data: dict):
+def create_order(data: dict, user_id: int = None):
+    user = CustomUser.objects.get(id=data["user_id"])
+    create_log("Order created", user_id)
     user = CustomUser.objects.get(id=data["user_id"])
     return Order.objects.create(
         status=data["status"],
@@ -20,7 +21,7 @@ def create_order(data: dict):
         created_at=data.get("created_at")
     )
 
-def update_order(order_id: int, data: dict):
+def update_order(order_id: int, data: dict, user_id: int = None):
     order = Order.objects.filter(id=order_id).first()
     if not order:
         return None
@@ -32,15 +33,16 @@ def update_order(order_id: int, data: dict):
             setattr(order, field, value)
 
     order.save()
+    create_log("Order updated", user_id)
     return order
 
-def delete_order(order_id: int):
+def delete_order(order_id: int, user_id: int = None):
     order = Order.objects.filter(id=order_id).first()
     if not order:
         return False
     order.delete()
+    create_log("Order deleted", user_id)
     return True
-
 
 def get_or_create_cart(user_id: int):
     """Récupère ou crée le panier (commande PENDING) de l'utilisateur"""
@@ -51,7 +53,6 @@ def get_or_create_cart(user_id: int):
         defaults={'total_amount': 0}
     )
     return cart
-
 
 def add_product_to_cart(user_id: int, product_id: int, quantity: int):
     """Ajoute un produit au panier de l'utilisateur"""
@@ -92,7 +93,6 @@ def add_product_to_cart(user_id: int, product_id: int, quantity: int):
     
     return order_item
 
-
 def update_cart_total(cart):
     """Met à jour le montant total du panier"""
     total = sum(
@@ -101,7 +101,6 @@ def update_cart_total(cart):
     )
     cart.total_amount = total
     cart.save()
-
 
 def remove_product_from_cart(user_id: int, product_id: int):
     """Retire complètement un produit du panier"""
@@ -119,7 +118,6 @@ def remove_product_from_cart(user_id: int, product_id: int):
     update_cart_total(cart)
     
     return True
-
 
 def update_cart_item_quantity(user_id: int, product_id: int, new_quantity: int):
     """Met à jour la quantité d'un produit dans le panier"""
@@ -152,7 +150,6 @@ def update_cart_item_quantity(user_id: int, product_id: int, new_quantity: int):
     
     return order_item
 
-
 def clear_cart(user_id: int):
     """Vide complètement le panier de l'utilisateur"""
     cart = get_or_create_cart(user_id)
@@ -163,7 +160,6 @@ def clear_cart(user_id: int):
     cart.save()
     
     return cart
-
 
 def finalize_order(order_id: int):
     """
@@ -190,3 +186,94 @@ def finalize_order(order_id: int):
     )
     
     return order
+
+DISCOUNT_CODES = {
+    'WELCOME10': 10,     
+    'PROMO15': 15,        
+    'SPECIAL20': 20,        
+    'VIP25': 25,            
+    'NEWUSER5': 5,          
+}
+
+def apply_discount_code(order_id: int, code: str):
+    """
+    Applique un code de réduction à une commande
+    Retourne la réduction appliquée
+    """
+    order = Order.objects.filter(id=order_id).first()
+    if not order:
+        return {
+            'success': False,
+            'message': 'Commande non trouvée'
+        }
+    
+    code = code.upper().strip()
+    
+    if code not in DISCOUNT_CODES:
+        return {
+            'success': False,
+            'message': 'Code de réduction invalide'
+        }
+    
+    if order.status != 'PENDING':
+        return {
+            'success': False,
+            'message': 'Impossible d\'appliquer une réduction à cette commande'
+        }
+    
+    percentage = DISCOUNT_CODES[code]
+    
+    items_total = sum(
+        item.quantity * item.unit_price_frozen 
+        for item in order.orderitem_set.all()
+    )
+    
+    discount_amount = (items_total * percentage) / 100
+    new_total = items_total - discount_amount
+    
+    order.discount_code = code
+    order.discount_amount = discount_amount
+    order.total_amount = new_total
+    order.save()
+    
+    return {
+        'success': True,
+        'message': f'Code {code} appliqué avec succès',
+        'discount_code': code,
+        'discount_percentage': percentage,
+        'discount_amount': float(discount_amount),
+        'subtotal': float(items_total),
+        'total_amount': float(new_total),
+        'savings': f'{percentage}%'
+    }
+
+def remove_discount(order_id: int):
+    """Retire la remise d'une commande"""
+    order = Order.objects.filter(id=order_id).first()
+    if not order:
+        return {
+            'success': False,
+            'message': 'Commande non trouvée'
+        }
+    
+    if order.status != 'PENDING':
+        return {
+            'success': False,
+            'message': 'Impossible de retirer une réduction de cette commande'
+        }
+    
+    items_total = sum(
+        item.quantity * item.unit_price_frozen 
+        for item in order.orderitem_set.all()
+    )
+    
+    order.discount_code = None
+    order.discount_amount = 0
+    order.total_amount = items_total
+    order.save()
+    
+    return {
+        'success': True,
+        'message': 'Remise supprimée',
+        'total_amount': float(items_total)
+    }

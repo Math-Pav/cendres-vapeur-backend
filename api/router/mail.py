@@ -7,7 +7,6 @@ from shared.websocket import manager
 
 router = APIRouter(prefix="/mail", tags=["mail"])
 
-
 class Missive(BaseModel):
     """
     Modèle de données pour la missive
@@ -25,7 +24,6 @@ async def envoyer_une_missive(missive: Missive):
     Roles allowed: ADMIN, EDITOR, USER
     """
     try:
-        # Notifier tous les clients connectés qu'une missive a été envoyée
         notification = f"📡 Missive transmise: {missive.sujet} de {missive.expediteur}"
         await manager.broadcast(notification)
         
@@ -59,5 +57,3 @@ async def get_status():
         "connected_clients": manager.get_connected_clients(),
         "connection_count": manager.get_connection_count()
     }
-
-
