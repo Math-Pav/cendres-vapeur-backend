@@ -22,30 +22,32 @@ class ConnectionManager:
             del self.active_connections[client_id]
             self.connection_count -= 1
 
-    async def broadcast(self, message: dict, exclude_client_id: int = None):
-        """Broadcast a JSON message to all connected clients, optionally excluding one"""
+    async def broadcast(self, message: str, exclude_client_id: int = None):
+        """Broadcast a message to all connected clients, optionally excluding one"""
         disconnected_clients = []
-        message_json = json.dumps(message)
         
         for client_id, connection_data in self.active_connections.items():
             if exclude_client_id is not None and client_id == exclude_client_id:
                 continue
             try:
-                await connection_data["websocket"].send_text(message_json)
+                await connection_data["websocket"].send_text(message)
             except:
                 disconnected_clients.append(client_id)
         
         for client_id in disconnected_clients:
             self.disconnect(client_id)
     
-    async def send_personal_message(self, message: dict, client_id: int):
+    async def send_personal_message(self, message: str, client_id: int):
         if client_id in self.active_connections:
             try:
-                await self.active_connections[client_id]["websocket"].send_text(json.dumps(message))
+                await self.active_connections[client_id]["websocket"].send_text(message)
                 return True
             except:
                 self.disconnect(client_id)
         return False
+    
+    def get_connected_clients(self) -> List[int]:
+        return list(self.active_connections.keys())
     
     def get_connected_users(self) -> List[Dict]:
         return [
@@ -62,32 +64,32 @@ async def chat_websocket_endpoint(websocket: WebSocket, client_id: int, username
     await manager.connect(websocket, client_id, username)
     
     # Notify others that user joined
-    await manager.broadcast({
+    await manager.broadcast(json.dumps({
         "type": "user_joined",
         "user_id": client_id,
         "username": username,
         "timestamp": datetime.now().isoformat(),
         "message": f"{username} a rejoint le chat"
-    })
+    }))
     
     try:
         while True:
             data = await websocket.receive_text()
             
             # Broadcast the message to all clients
-            await manager.broadcast({
+            await manager.broadcast(json.dumps({
                 "type": "message",
                 "user_id": client_id,
                 "username": username,
                 "message": data,
                 "timestamp": datetime.now().isoformat()
-            })
+            }))
     except WebSocketDisconnect:
         manager.disconnect(client_id)
-        await manager.broadcast({
+        await manager.broadcast(json.dumps({
             "type": "user_left",
             "user_id": client_id,
             "username": username,
             "timestamp": datetime.now().isoformat(),
             "message": f"{username} a quitté le chat"
-        })
+        }))
