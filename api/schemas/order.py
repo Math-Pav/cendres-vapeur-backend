@@ -5,15 +5,41 @@ from decimal import Decimal
 class OrderBase(BaseModel):
     status: str
     total_amount: Decimal
-    invoice_file: str | None = None
     user_id: int
 
 class OrderCreate(OrderBase):
     pass
 
+class ShippingInfoRequest(BaseModel):
+    """Requête pour valider les infos de livraison"""
+    shipping_address: str
+    shipping_city: str
+    shipping_postal_code: str
+    shipping_country: str
+    billing_address: str | None = None
+    billing_city: str | None = None
+    billing_postal_code: str | None = None
+    billing_country: str | None = None
+
 class OrderOut(OrderBase):
     id: int
     created_at: datetime
+    updated_at: datetime
+    shipping_address: str | None = None
+    shipping_city: str | None = None
+    shipping_postal_code: str | None = None
+    shipping_country: str | None = None
+    billing_address: str | None = None
+    billing_city: str | None = None
+    billing_postal_code: str | None = None
+    billing_country: str | None = None
+    payment_method: str | None = None
+    payment_status: str | None = None
+    discount_code: str | None = None
+    discount_amount: Decimal = 0
+    invoice_file: str | None = None
+    confirmed_at: datetime | None = None
+    paid_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -31,7 +57,6 @@ class AddToCartRequest(BaseModel):
     """Requête pour ajouter un produit au panier"""
     product_id: int
     quantity: int = 1
-
 
 class UpdateCartItemRequest(BaseModel):
     """Requête pour modifier la quantité d'un article du panier"""

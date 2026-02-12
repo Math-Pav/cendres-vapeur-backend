@@ -6,7 +6,8 @@ from api.schemas.order import (
     AddToCartRequest, 
     CartResponse,
     PaymentRequest,
-    UpdateCartItemRequest
+    UpdateCartItemRequest,
+    ShippingInfoRequest
 )
 from api.crud.order import (
     list_orders,
@@ -19,6 +20,9 @@ from api.crud.order import (
     remove_product_from_cart,
     update_cart_item_quantity,
     clear_cart,
+    checkout_cart,
+    confirm_order_details,
+    process_payment,
     apply_discount_code,
     remove_discount
 )
@@ -33,7 +37,7 @@ router = APIRouter(prefix="/orders", tags=["Orders"])
 def get_orders():
     return list_orders()
 
-@router.get("/{order_id}", response_model=OrderOut, dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
+@router.get("/{order_id}", response_model=OrderOut, dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
 def get_one_order(order_id: int):
     order = get_order(order_id)
     if not order:
@@ -57,7 +61,9 @@ def delete_existing_order(order_id: int, payload = Depends(require_roles("ADMIN"
         raise HTTPException(status_code=404, detail="Order not found")
     return {"deleted": True}
 
-@router.post("/cart/add", dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
+# ======================== PANIER ========================
+
+@router.post("/cart/add", dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
 def add_to_cart(user_id: int, request: AddToCartRequest):
     """Ajoute un produit au panier de l'utilisateur"""
     try:
@@ -85,9 +91,9 @@ def add_to_cart(user_id: int, request: AddToCartRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/cart/{user_id}", response_model=CartResponse, dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
+@router.get("/cart/{user_id}", response_model=CartResponse, dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
 def get_user_cart(user_id: int):
-    """Récupère le panier (commande PENDING) de l'utilisateur"""
+    """Récupère le panier (commande CART) de l'utilisateur"""
     try:
         cart = get_or_create_cart(user_id)
         items = OrderItem.objects.filter(order=cart)
@@ -111,8 +117,7 @@ def get_user_cart(user_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.put("/cart/{user_id}/product/{product_id}", dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
+@router.put("/cart/{user_id}/product/{product_id}", dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
 def update_product_quantity(user_id: int, product_id: int, request: UpdateCartItemRequest):
     """Modifie la quantité d'un produit dans le panier"""
     try:
@@ -140,8 +145,7 @@ def update_product_quantity(user_id: int, product_id: int, request: UpdateCartIt
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.delete("/cart/{user_id}/product/{product_id}", dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
+@router.delete("/cart/{user_id}/product/{product_id}", dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
 def remove_from_cart(user_id: int, product_id: int):
     """Retire un produit du panier"""
     try:
@@ -163,7 +167,7 @@ def remove_from_cart(user_id: int, product_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.delete("/cart/{user_id}", dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
+@router.delete("/cart/{user_id}", dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
 def empty_cart(user_id: int):
     """Vide complètement le panier de l'utilisateur"""
     try:
@@ -181,9 +185,97 @@ def empty_cart(user_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ======================== FLUX DE COMMANDE ========================
+
+@router.post("/{order_id}/checkout", dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
+def checkout_order(order_id: int):
+    """
+    Convertit le panier (CART) en commande (PENDING)
+    Étape 1 du flux de commande
+    """
+    try:
+        order = checkout_cart(order_id)
+        return {
+            "success": True,
+            "message": "Panier converti en commande. Veuillez confirmer vos infos de livraison",
+            "order_id": order.id,
+            "status": order.status,
+            "total_amount": str(order.total_amount)
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{order_id}/confirm-details", dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
+def confirm_order_info(order_id: int, shipping_info: ShippingInfoRequest):
+    """
+    Valide et confirme les informations de livraison/facturation
+    Étape 2 du flux de commande
+    Passe de PENDING à CONFIRMED
+    """
+    try:
+        order = confirm_order_details(order_id, shipping_info.model_dump())
+        return {
+            "success": True,
+            "message": "Infos de livraison confirmées. Prêt pour le paiement",
+            "order_id": order.id,
+            "status": order.status,
+            "confirmed_at": order.confirmed_at
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{order_id}/payment", dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
+def process_order_payment(order_id: int, request: PaymentRequest):
+    """
+    Traite le paiement d'une commande CONFIRMED
+    Étape 3 du flux de commande
+    
+    Si approuvé:
+    - CONFIRMED -> PAID
+    - Génère le PDF de la facture
+    - Crée un nouveau panier CART vide
+    
+    Si refusé:
+    - Reste CONFIRMED
+    - Permet de réessayer
+    """
+    try:
+        payment_info = {
+            'payment_method': 'PAYPAL',
+            'approve': request.approve,
+            'paypal_email': request.paypal_email
+        }
+        
+        result = process_payment(order_id, payment_info)
+        
+        if result['success']:
+            return {
+                "success": True,
+                "message": result['message'],
+                "order_id": result['order_id'],
+                "status": result['status'],
+                "next_step": "Facture disponible au téléchargement"
+            }
+        else:
+            return {
+                "success": False,
+                "message": result['message'],
+                "order_id": result['order_id'],
+                "status": result['status'],
+                "next_step": "Veuillez réessayer le paiement"
+            }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/{order_id}/invoice", dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
 def download_invoice(order_id: int):
-    """Télécharge la facture PDF d'une commande"""
+    """Télécharge la facture PDF d'une commande (PAID uniquement)"""
     try:
         pdf_buffer = generate_invoice_pdf(order_id)
         return StreamingResponse(
@@ -196,22 +288,7 @@ def download_invoice(order_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/{order_id}/payment", dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
-def process_paypal_payment(order_id: int, request: PaymentRequest):
-    """
-    Simule un paiement PayPal
-    Si approve=true : approuve le paiement, génère la facture et crée un nouveau panier
-    Si approve=false : refuse le paiement
-    """
-    try:
-        result = simulate_paypal_payment(order_id, request.paypal_email, request.approve)
-        return result
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/{order_id}/apply-discount", dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
+@router.post("/{order_id}/apply-discount", dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
 def apply_discount(order_id: int, discount_code: str):
     """
     Applique un code de réduction à une commande
@@ -224,7 +301,7 @@ def apply_discount(order_id: int, discount_code: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.delete("/{order_id}/remove-discount", dependencies=[Depends(require_roles("ADMIN", "EDITOR", "USER"))])
+@router.delete("/{order_id}/remove-discount", dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
 def remove_discount_endpoint(order_id: int):
     """Retire la remise d'une commande"""
     try:

@@ -2,6 +2,7 @@ from apps.models import Order, OrderItem, Product
 from apps.models.customUser import CustomUser
 from shared.pdf_generator import save_invoice_to_file
 from apps.classes.log import create_log
+from django.utils import timezone
 
 def list_orders():
     return Order.objects.select_related("user").all()
@@ -12,7 +13,6 @@ def get_order(order_id: int):
 def create_order(data: dict, user_id: int = None):
     user = CustomUser.objects.get(id=data["user_id"])
     create_log("Order created", user_id)
-    user = CustomUser.objects.get(id=data["user_id"])
     return Order.objects.create(
         status=data["status"],
         total_amount=data["total_amount"],
@@ -45,11 +45,11 @@ def delete_order(order_id: int, user_id: int = None):
     return True
 
 def get_or_create_cart(user_id: int):
-    """Récupère ou crée le panier (commande PENDING) de l'utilisateur"""
+    """Récupère ou crée le panier (commande CART) de l'utilisateur"""
     user = CustomUser.objects.get(id=user_id)
     cart, created = Order.objects.get_or_create(
         user=user,
-        status='PENDING',
+        status='CART',
         defaults={'total_amount': 0}
     )
     return cart
@@ -161,31 +161,110 @@ def clear_cart(user_id: int):
     
     return cart
 
-def finalize_order(order_id: int):
+def checkout_cart(order_id: int):
+    """Convertit le panier CART en une commande PENDING pour confirmation"""
+    cart = Order.objects.get(id=order_id)
+    
+    # Vérifier que c'est bien un panier
+    if cart.status != 'CART':
+        raise ValueError(f"Impossible de convertir une commande en statut {cart.status}")
+    
+    # Vérifier qu'il y a des articles
+    if not OrderItem.objects.filter(order=cart).exists():
+        raise ValueError("Le panier est vide. Impossible de passer commande")
+    
+    # Passer le panier en PENDING (en attente de confirmation des infos)
+    cart.status = 'PENDING'
+    cart.save()
+    
+    create_log(f"Order checkout - Order #{cart.id}", cart.user_id)
+    
+    return cart
+
+def confirm_order_details(order_id: int, shipping_info: dict):
     """
-    Finalise une commande (PENDING -> PAID) et génère la facture
-    Crée une nouvelle commande PENDING pour le prochain panier
+    Valide et confirme les informations de livraison/facturation
+    Passe la commande de PENDING à CONFIRMED
     """
     order = Order.objects.get(id=order_id)
     
     if order.status != 'PENDING':
-        raise ValueError("Seules les commandes PENDING peuvent être finalisées")
+        raise ValueError(f"Impossible de confirmer une commande en statut {order.status}")
     
     if not OrderItem.objects.filter(order=order).exists():
         raise ValueError("La commande ne contient aucun article")
     
-    save_invoice_to_file(order_id)
+    # Remplir les infos de livraison
+    order.shipping_address = shipping_info.get('shipping_address')
+    order.shipping_city = shipping_info.get('shipping_city')
+    order.shipping_postal_code = shipping_info.get('shipping_postal_code')
+    order.shipping_country = shipping_info.get('shipping_country')
     
-    order.status = 'PAID'
+    # Remplir les infos de facturation (utiliser les mêmes si pas fourni)
+    order.billing_address = shipping_info.get('billing_address') or shipping_info.get('shipping_address')
+    order.billing_city = shipping_info.get('billing_city') or shipping_info.get('shipping_city')
+    order.billing_postal_code = shipping_info.get('billing_postal_code') or shipping_info.get('shipping_postal_code')
+    order.billing_country = shipping_info.get('billing_country') or shipping_info.get('shipping_country')
+    
+    # Passer au statut CONFIRMED en attente de paiement
+    order.status = 'CONFIRMED'
+    order.confirmed_at = timezone.now()
     order.save()
     
-    new_cart = Order.objects.create(
-        user=order.user,
-        status='PENDING',
-        total_amount=0
-    )
+    create_log(f"Order details confirmed - Order #{order.id}", order.user_id)
     
     return order
+
+def process_payment(order_id: int, payment_info: dict):
+    """
+    Traite le paiement d'une commande
+    Si approuvé: CONFIRMED -> PAID, génère PDF, crée nouveau panier
+    Si refusé: reste CONFIRMED
+    """
+    order = Order.objects.get(id=order_id)
+    
+    if order.status != 'CONFIRMED':
+        raise ValueError(f"Impossible de payer une commande en statut {order.status}")
+    
+    # Enregistrer les infos de paiement
+    order.payment_method = payment_info.get('payment_method', 'PAYPAL')
+    order.payment_status = 'APPROVED' if payment_info.get('approve', False) else 'REJECTED'
+    
+    if payment_info.get('approve', False):
+        # Paiement approuvé
+        order.status = 'PAID'
+        order.paid_at = timezone.now()
+        order.save()
+        
+        # Générer la facture PDF
+        save_invoice_to_file(order_id)
+        
+        create_log(f"Order paid - Order #{order.id}", order.user_id)
+        
+        # Créer un nouveau panier CART vide pour l'utilisateur
+        Order.objects.get_or_create(
+            user=order.user,
+            status='CART',
+            defaults={'total_amount': 0}
+        )
+        
+        return {
+            'success': True,
+            'message': 'Paiement approuvé et commande confirmée',
+            'order_id': order.id,
+            'status': 'PAID'
+        }
+    else:
+        # Paiement refusé
+        order.save()
+        create_log(f"Order payment rejected - Order #{order.id}", order.user_id)
+        
+        return {
+            'success': False,
+            'message': 'Paiement refusé. Veuillez réessayer',
+            'order_id': order.id,
+            'status': 'CONFIRMED'
+        }
 
 DISCOUNT_CODES = {
     'WELCOME10': 10,     
@@ -215,7 +294,7 @@ def apply_discount_code(order_id: int, code: str):
             'message': 'Code de réduction invalide'
         }
     
-    if order.status != 'PENDING':
+    if order.status not in ['CART', 'PENDING']:
         return {
             'success': False,
             'message': 'Impossible d\'appliquer une réduction à cette commande'
@@ -256,7 +335,7 @@ def remove_discount(order_id: int):
             'message': 'Commande non trouvée'
         }
     
-    if order.status != 'PENDING':
+    if order.status not in ['CART', 'PENDING']:
         return {
             'success': False,
             'message': 'Impossible de retirer une réduction de cette commande'

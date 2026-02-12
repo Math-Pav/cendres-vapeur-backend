@@ -28,7 +28,7 @@ router = APIRouter(prefix="/products", tags=["Products"])
 UPLOAD_DIR = "uploads/products"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-@router.post("/{product_id}/upload-image")
+@router.post("/{product_id}/upload-image", dependencies=[Depends(require_roles("EDITOR", "ADMIN"))])
 async def upload_product_image(product_id: int, file: UploadFile = File(...)):
     try:
         # Vérifier le type de fichier
@@ -48,7 +48,7 @@ async def upload_product_image(product_id: int, file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error uploading image: {str(e)}")
 
-@router.get("/{product_id}/image")
+@router.get("/{product_id}/image", dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
 async def get_product_image(product_id: int):
     file_path = f"{UPLOAD_DIR}/product_{product_id}.jpg"
     if os.path.exists(file_path):
