@@ -57,3 +57,33 @@ async def get_status():
         "connected_clients": manager.get_connected_clients(),
         "connection_count": manager.get_connection_count()
     }
+
+
+class BroadcastMessage(BaseModel):
+    message: str
+    exclude_client_id: int = None
+
+
+@router.post("/broadcast", dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
+async def broadcast_message(message_data: BroadcastMessage):
+    """
+    Diffuser un message à tous les clients WebSocket connectés
+
+        Roles allowed: ADMIN, EDITOR
+    """
+    await manager.broadcast(message_data.message, message_data.exclude_client_id)
+    return {"status": "message_broadcasted", "message": message_data.message}
+
+
+@router.post("/disconnect-client/{client_id}", dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
+async def disconnect_client(client_id: int):
+    """
+    Déconnecter manuellement un client WebSocket
+
+        Roles allowed: ADMIN, EDITOR
+    """
+    if client_id in manager.get_connected_clients():
+        manager.disconnect(client_id)
+        return {"status": "client_disconnected", "client_id": client_id}
+    else:
+        raise HTTPException(status_code=404, detail=f"Client {message_data.client_id} not connected")
