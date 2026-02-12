@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, WebSocket, Query
 from shared.websocket import manager, chat_websocket_endpoint
-from shared.security import require_roles
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
