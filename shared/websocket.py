@@ -22,12 +22,14 @@ class ConnectionManager:
             del self.active_connections[client_id]
             self.connection_count -= 1
 
-    async def broadcast(self, message: dict):
-        """Broadcast a JSON message to all connected clients"""
+    async def broadcast(self, message: dict, exclude_client_id: int = None):
+        """Broadcast a JSON message to all connected clients, optionally excluding one"""
         disconnected_clients = []
         message_json = json.dumps(message)
         
         for client_id, connection_data in self.active_connections.items():
+            if exclude_client_id is not None and client_id == exclude_client_id:
+                continue
             try:
                 await connection_data["websocket"].send_text(message_json)
             except:

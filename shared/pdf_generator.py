@@ -9,7 +9,7 @@ from datetime import datetime
 from apps.models import Order, OrderItem
 from django.conf import settings
 
-INVOICES_DIR = os.path.join(settings.BASE_DIR, 'invoices')
+INVOICES_DIR = os.path.join(settings.BASE_DIR, 'invoices') 
 
 os.makedirs(INVOICES_DIR, exist_ok=True)
 
