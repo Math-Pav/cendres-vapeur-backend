@@ -1,9 +1,10 @@
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import List
 from decimal import Decimal
 from django.apps import apps
+from shared.security import require_roles
 
 
 try:
@@ -34,7 +35,7 @@ class ProductRankingSchema(BaseModel):
 
 
 
-@router.post("/products/{product_id}/vote")
+@router.post("/products/{product_id}/vote", dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
 def vote_product(product_id: int, payload: VotePayload):
     if Product is None or Vote is None:
         raise HTTPException(status_code=500, detail="Erreur interne : Modèles non trouvés.")
@@ -84,7 +85,7 @@ def vote_product(product_id: int, payload: VotePayload):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/products/{product_id}/like")
+@router.post("/products/{product_id}/like", dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
 def toggle_like(product_id: int, payload: LikePayload):
     if Vote is None:
         raise HTTPException(status_code=500, detail="Erreur interne : Modèle Vote non trouvé.")
@@ -114,7 +115,7 @@ def toggle_like(product_id: int, payload: LikePayload):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/ranking", response_model=List[ProductRankingSchema])
+@router.get("/ranking", response_model=List[ProductRankingSchema], dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
 def get_products_ranking():
     if Product is None or Vote is None:
         raise HTTPException(status_code=500, detail="Impossible de charger les données.")
