@@ -12,6 +12,5 @@ apps/migrations/__pycache__/
 .idea/
 .vscode/
 
-shared/database.py
 
 .env
