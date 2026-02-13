@@ -2,6 +2,7 @@ from apps.models import Product, Category
 from shared.price_fluctuation import PriceFluctuation
 from decimal import Decimal
 from apps.classes.log import create_log
+from django.utils import timezone
 
 def list_products():
     return Product.objects.all()
@@ -92,25 +93,39 @@ def get_product(product_id: int):
     return Product.objects.filter(id=product_id).first()
 
 def create_product(data: dict, user_id: int = None):
+    """
+    Crée un nouveau produit
+    Initialise correctement le base_stock, current_price et autres valeurs
+    """
     category = Category.objects.get(id=data["category_id"])
     
-    stock = data["stock"]
+    # Valider et initialiser le stock
+    stock = data.get("stock")
+    if not stock or stock <= 0:
+        raise ValueError("Le stock initial doit être supérieur à 0")
+    
+    # Valider et initialiser le prix
+    base_price = data.get("base_price")
+    if not base_price or base_price <= 0:
+        raise ValueError("Le prix de base doit être supérieur à 0")
     
     create_log("Product created", user_id)
     
     return Product.objects.create(
         name=data["name"],
-        description=data.get("description"),
+        description=data.get("description", ""),
         stock=stock,
         image=data.get("image_url"),
         category=category,
-        base_price=data["base_price"],
-        current_price=data["base_price"],
+        base_price=base_price,
+        current_price=base_price,  # Prix actuel = prix de base au départ
         popularity_score=data.get("popularity_score", 0),
-        base_stock=stock,
+        base_stock=stock,  # Stock initial = stock fourni (immuable)
         view_count=0,
         purchase_count=0,
-        price_change_percentage=0.0
+        price_change_percentage=0.0,
+        previous_price=base_price,  # Prix précédent = prix de base au départ
+        last_price_update=timezone.now()
     )
 
 def update_product(product_id: int, data: dict, user_id: int = None):

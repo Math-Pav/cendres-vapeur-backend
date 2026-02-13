@@ -101,7 +101,12 @@ def get_one_product(product_id: int):
 
 @router.post("", response_model=ProductOut)
 def create_new_product(product: ProductCreate, payload = Depends(require_roles("EDITOR" ,"ADMIN"))):
-    return create_product(product.model_dump(), user_id=payload['id'])
+    try:
+        return create_product(product.model_dump(), user_id=payload['id'])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{product_id}", response_model=ProductOut)
 def update_existing_product(product_id: int, product: ProductCreate, payload = Depends(require_roles("EDITOR" ,"ADMIN"))):
