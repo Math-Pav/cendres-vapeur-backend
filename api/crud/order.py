@@ -2,6 +2,8 @@ from apps.models import Order, OrderItem, Product
 from apps.models.customUser import CustomUser
 from shared.pdf_generator import save_invoice_to_file
 from apps.classes.log import create_log
+from django.utils import timezone
+from django.db import models
 
 def list_orders():
     return Order.objects.select_related("user").all()
@@ -12,7 +14,6 @@ def get_order(order_id: int):
 def create_order(data: dict, user_id: int = None):
     user = CustomUser.objects.get(id=data["user_id"])
     create_log("Order created", user_id)
-    user = CustomUser.objects.get(id=data["user_id"])
     return Order.objects.create(
         status=data["status"],
         total_amount=data["total_amount"],
@@ -45,11 +46,11 @@ def delete_order(order_id: int, user_id: int = None):
     return True
 
 def get_or_create_cart(user_id: int):
-    """Récupère ou crée le panier (commande PENDING) de l'utilisateur"""
+    """Récupère ou crée le panier (commande CART) de l'utilisateur"""
     user = CustomUser.objects.get(id=user_id)
     cart, created = Order.objects.get_or_create(
         user=user,
-        status='PENDING',
+        status='CART',
         defaults={'total_amount': 0}
     )
     return cart
@@ -161,31 +162,110 @@ def clear_cart(user_id: int):
     
     return cart
 
-def finalize_order(order_id: int):
+def checkout_cart(order_id: int):
+    """Convertit le panier CART en une commande PENDING pour confirmation"""
+    cart = Order.objects.get(id=order_id)
+    
+    # Vérifier que c'est bien un panier
+    if cart.status != 'CART':
+        raise ValueError(f"Impossible de convertir une commande en statut {cart.status}")
+    
+    # Vérifier qu'il y a des articles
+    if not OrderItem.objects.filter(order=cart).exists():
+        raise ValueError("Le panier est vide. Impossible de passer commande")
+    
+    # Passer le panier en PENDING (en attente de confirmation des infos)
+    cart.status = 'PENDING'
+    cart.save()
+    
+    create_log(f"Order checkout - Order #{cart.id}", cart.user_id)
+    
+    return cart
+
+def confirm_order_details(order_id: int, shipping_info: dict):
     """
-    Finalise une commande (PENDING -> PAID) et génère la facture
-    Crée une nouvelle commande PENDING pour le prochain panier
+    Valide et confirme les informations de livraison/facturation
+    Passe la commande de PENDING à CONFIRMED
     """
     order = Order.objects.get(id=order_id)
     
     if order.status != 'PENDING':
-        raise ValueError("Seules les commandes PENDING peuvent être finalisées")
+        raise ValueError(f"Impossible de confirmer une commande en statut {order.status}")
     
     if not OrderItem.objects.filter(order=order).exists():
         raise ValueError("La commande ne contient aucun article")
     
-    save_invoice_to_file(order_id)
+    # Remplir les infos de livraison
+    order.shipping_address = shipping_info.get('shipping_address')
+    order.shipping_city = shipping_info.get('shipping_city')
+    order.shipping_postal_code = shipping_info.get('shipping_postal_code')
+    order.shipping_country = shipping_info.get('shipping_country')
     
-    order.status = 'PAID'
+    # Remplir les infos de facturation (utiliser les mêmes si pas fourni)
+    order.billing_address = shipping_info.get('billing_address') or shipping_info.get('shipping_address')
+    order.billing_city = shipping_info.get('billing_city') or shipping_info.get('shipping_city')
+    order.billing_postal_code = shipping_info.get('billing_postal_code') or shipping_info.get('shipping_postal_code')
+    order.billing_country = shipping_info.get('billing_country') or shipping_info.get('shipping_country')
+    
+    # Passer au statut CONFIRMED en attente de paiement
+    order.status = 'CONFIRMED'
+    order.confirmed_at = timezone.now()
     order.save()
     
-    new_cart = Order.objects.create(
-        user=order.user,
-        status='PENDING',
-        total_amount=0
-    )
+    create_log(f"Order details confirmed - Order #{order.id}", order.user_id)
     
     return order
+
+def process_payment(order_id: int, payment_info: dict):
+    """
+    Traite le paiement d'une commande
+    Si approuvé: CONFIRMED -> PAID, génère PDF, crée nouveau panier
+    Si refusé: reste CONFIRMED
+    """
+    order = Order.objects.get(id=order_id)
+    
+    if order.status != 'CONFIRMED':
+        raise ValueError(f"Impossible de payer une commande en statut {order.status}")
+    
+    # Enregistrer les infos de paiement
+    order.payment_method = payment_info.get('payment_method', 'PAYPAL')
+    order.payment_status = 'APPROVED' if payment_info.get('approve', False) else 'REJECTED'
+    
+    if payment_info.get('approve', False):
+        # Paiement approuvé
+        order.status = 'PAID'
+        order.paid_at = timezone.now()
+        order.save()
+        
+        # Générer la facture PDF
+        save_invoice_to_file(order_id)
+        
+        create_log(f"Order paid - Order #{order.id}", order.user_id)
+        
+        # Créer un nouveau panier CART vide pour l'utilisateur
+        Order.objects.get_or_create(
+            user=order.user,
+            status='CART',
+            defaults={'total_amount': 0}
+        )
+        
+        return {
+            'success': True,
+            'message': 'Paiement approuvé et commande confirmée',
+            'order_id': order.id,
+            'status': 'PAID'
+        }
+    else:
+        # Paiement refusé
+        order.save()
+        create_log(f"Order payment rejected - Order #{order.id}", order.user_id)
+        
+        return {
+            'success': False,
+            'message': 'Paiement refusé. Veuillez réessayer',
+            'order_id': order.id,
+            'status': 'CONFIRMED'
+        }
 
 DISCOUNT_CODES = {
     'WELCOME10': 10,     
@@ -215,7 +295,7 @@ def apply_discount_code(order_id: int, code: str):
             'message': 'Code de réduction invalide'
         }
     
-    if order.status != 'PENDING':
+    if order.status not in ['CART', 'PENDING']:
         return {
             'success': False,
             'message': 'Impossible d\'appliquer une réduction à cette commande'
@@ -256,7 +336,7 @@ def remove_discount(order_id: int):
             'message': 'Commande non trouvée'
         }
     
-    if order.status != 'PENDING':
+    if order.status not in ['CART', 'PENDING']:
         return {
             'success': False,
             'message': 'Impossible de retirer une réduction de cette commande'
@@ -276,4 +356,118 @@ def remove_discount(order_id: int):
         'success': True,
         'message': 'Remise supprimée',
         'total_amount': float(items_total)
+    }
+
+def get_admin_stats():
+    """
+    Récupère les statistiques globales pour le dashboard admin
+    Calcule les revenus, nombre de commandes par statut, moyennes, etc.
+    """
+    from decimal import Decimal
+    
+    # Récupérer toutes les commandes
+    all_orders = Order.objects.all()
+    paid_orders = Order.objects.filter(status='PAID')
+    pending_orders = Order.objects.filter(status='PENDING')
+    confirmed_orders = Order.objects.filter(status='CONFIRMED')
+    cart_orders = Order.objects.filter(status='CART')
+    shipped_orders = Order.objects.filter(status='SHIPPED')
+    
+    # Calculs des revenus
+    total_revenue = sum(order.total_amount for order in paid_orders)
+    total_discount_given = sum(order.discount_amount for order in paid_orders)
+    
+    # Nombre de commandes par statut
+    stats_by_status = {
+        'CART': cart_orders.count(),
+        'PENDING': pending_orders.count(),
+        'CONFIRMED': confirmed_orders.count(),
+        'PAID': paid_orders.count(),
+        'SHIPPED': shipped_orders.count(),
+        'TOTAL': all_orders.count()
+    }
+    
+    # Calculs des moyennes et min/max
+    if paid_orders.exists():
+        paid_amounts = [order.total_amount for order in paid_orders]
+        average_revenue = total_revenue / len(paid_amounts)
+        min_revenue = min(paid_amounts)
+        max_revenue = max(paid_amounts)
+    else:
+        average_revenue = Decimal('0')
+        min_revenue = Decimal('0')
+        max_revenue = Decimal('0')
+    
+    # Revenu moyen par article
+    total_items = sum(
+        OrderItem.objects.filter(order__status='PAID').aggregate(
+            total=models.Sum('quantity')
+        ).get('total') or 0
+        for _ in [1]
+    )
+    total_items_count = OrderItem.objects.filter(order__status='PAID').count()
+    
+    # Top clients (par revenu dépensé)
+    from django.db.models import Sum
+    top_clients = []
+    client_stats = Order.objects.filter(status='PAID').values('user__id', 'user__username', 'user__email').annotate(
+        total_spent=Sum('total_amount'),
+        order_count=models.Count('id')
+    ).order_by('-total_spent')[:5]
+    
+    for client in client_stats:
+        top_clients.append({
+            'user_id': client['user__id'],
+            'username': client['user__username'],
+            'email': client['user__email'],
+            'total_spent': float(client['total_spent']),
+            'order_count': client['order_count']
+        })
+    
+    # Top produits vendus
+    from django.db.models import F, FloatField
+    from django.db.models.functions import Cast
+    
+    top_products = []
+    product_stats = OrderItem.objects.filter(
+        order__status='PAID'
+    ).values('product__id', 'product__name', 'product__current_price').annotate(
+        total_quantity=models.Sum('quantity'),
+        total_revenue=models.Sum(F('quantity') * F('unit_price_frozen'), output_field=models.DecimalField())
+    ).order_by('-total_quantity')[:5]
+    
+    for product in product_stats:
+        top_products.append({
+            'product_id': product['product__id'],
+            'product_name': product['product__name'],
+            'current_price': float(product['product__current_price']),
+            'total_quantity_sold': product['total_quantity'],
+            'total_revenue': float(product['total_revenue'] or 0)
+        })
+    
+    return {
+        'success': True,
+        'revenue': {
+            'total_revenue': float(total_revenue),
+            'total_discount_given': float(total_discount_given),
+            'average_revenue_per_order': float(average_revenue),
+            'min_revenue': float(min_revenue),
+            'max_revenue': float(max_revenue)
+        },
+        'orders': {
+            'total_orders': stats_by_status['TOTAL'],
+            'by_status': {
+                'cart': stats_by_status['CART'],
+                'pending': stats_by_status['PENDING'],
+                'confirmed': stats_by_status['CONFIRMED'],
+                'paid': stats_by_status['PAID'],
+                'shipped': stats_by_status['SHIPPED']
+            }
+        },
+        'top_clients': top_clients,
+        'top_products': top_products,
+        'summary': {
+            'total_customers_who_paid': paid_orders.values('user').distinct().count(),
+            'average_items_per_paid_order': round(total_items_count / stats_by_status['PAID'], 2) if stats_by_status['PAID'] > 0 else 0
+        }
     }

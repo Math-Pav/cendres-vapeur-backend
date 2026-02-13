@@ -12,14 +12,14 @@ from api.crud.category import (
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
 
-@router.get("", response_model=list[CategoryOut])
+@router.get("", response_model=list[CategoryOut], dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
 def get_categories():
     """
     Return a list of all categories.
     """
     return list_categories()
 
-@router.get("/{category_id}", response_model=CategoryOut)
+@router.get("/{category_id}", response_model=CategoryOut, dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
 def get_one_category(category_id: int):
     """
     Docstring for get_one_category

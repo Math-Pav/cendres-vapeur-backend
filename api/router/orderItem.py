@@ -11,7 +11,7 @@ from shared.security import require_roles
 
 router = APIRouter(prefix="/order-items", tags=["OrderItems"])
 
-@router.get("", response_model=list[OrderItemOut])
+@router.get("", response_model=list[OrderItemOut], dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
 def get_order_items():
     return list_order_items()
 

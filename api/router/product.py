@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
 from api import router
 from api.schemas.product import ProductCreate, ProductOut
 from api.crud.product import (
@@ -17,7 +18,42 @@ from api.crud.product import (
 )
 from shared.security import require_roles
 
+import os
+import shutil
+
 router = APIRouter(prefix="/products", tags=["Products"])
+
+
+# Créer un dossier pour les images
+UPLOAD_DIR = "uploads/products"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+@router.post("/{product_id}/upload-image", dependencies=[Depends(require_roles("EDITOR", "ADMIN"))])
+async def upload_product_image(product_id: int, file: UploadFile = File(...)):
+    try:
+        # Vérifier le type de fichier
+        if file.content_type not in ["image/jpeg", "image/png", "image/gif", "image/webp"]:
+            raise HTTPException(status_code=400, detail="Only image files are allowed (JPEG, PNG, GIF, WebP)")
+        
+        # S'assurer que le dossier existe
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        
+        # Sauvegarder le fichier
+        file_path = f"{UPLOAD_DIR}/product_{product_id}.jpg"
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        return {"image_url": f"/products/{product_id}/image"}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading image: {str(e)}")
+
+@router.get("/{product_id}/image", dependencies=[Depends(require_roles("USER", "EDITOR", "ADMIN"))])
+async def get_product_image(product_id: int):
+    file_path = f"{UPLOAD_DIR}/product_{product_id}.jpg"
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    raise HTTPException(status_code=404, detail="Image not found")
 
 @router.get("", response_model=list[ProductOut], dependencies=[Depends(require_roles("USER", "EDITOR" ,"ADMIN"))])
 def get_products():
@@ -65,7 +101,12 @@ def get_one_product(product_id: int):
 
 @router.post("", response_model=ProductOut)
 def create_new_product(product: ProductCreate, payload = Depends(require_roles("EDITOR" ,"ADMIN"))):
-    return create_product(product.model_dump(), user_id=payload['id'])
+    try:
+        return create_product(product.model_dump(), user_id=payload['id'])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{product_id}", response_model=ProductOut)
 def update_existing_product(product_id: int, product: ProductCreate, payload = Depends(require_roles("EDITOR" ,"ADMIN"))):
