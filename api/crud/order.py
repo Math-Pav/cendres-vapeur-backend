@@ -3,6 +3,7 @@ from apps.models.customUser import CustomUser
 from shared.pdf_generator import save_invoice_to_file
 from apps.classes.log import create_log
 from django.utils import timezone
+from django.db import models
 
 def list_orders():
     return Order.objects.select_related("user").all()
@@ -355,4 +356,118 @@ def remove_discount(order_id: int):
         'success': True,
         'message': 'Remise supprimée',
         'total_amount': float(items_total)
+    }
+
+def get_admin_stats():
+    """
+    Récupère les statistiques globales pour le dashboard admin
+    Calcule les revenus, nombre de commandes par statut, moyennes, etc.
+    """
+    from decimal import Decimal
+    
+    # Récupérer toutes les commandes
+    all_orders = Order.objects.all()
+    paid_orders = Order.objects.filter(status='PAID')
+    pending_orders = Order.objects.filter(status='PENDING')
+    confirmed_orders = Order.objects.filter(status='CONFIRMED')
+    cart_orders = Order.objects.filter(status='CART')
+    shipped_orders = Order.objects.filter(status='SHIPPED')
+    
+    # Calculs des revenus
+    total_revenue = sum(order.total_amount for order in paid_orders)
+    total_discount_given = sum(order.discount_amount for order in paid_orders)
+    
+    # Nombre de commandes par statut
+    stats_by_status = {
+        'CART': cart_orders.count(),
+        'PENDING': pending_orders.count(),
+        'CONFIRMED': confirmed_orders.count(),
+        'PAID': paid_orders.count(),
+        'SHIPPED': shipped_orders.count(),
+        'TOTAL': all_orders.count()
+    }
+    
+    # Calculs des moyennes et min/max
+    if paid_orders.exists():
+        paid_amounts = [order.total_amount for order in paid_orders]
+        average_revenue = total_revenue / len(paid_amounts)
+        min_revenue = min(paid_amounts)
+        max_revenue = max(paid_amounts)
+    else:
+        average_revenue = Decimal('0')
+        min_revenue = Decimal('0')
+        max_revenue = Decimal('0')
+    
+    # Revenu moyen par article
+    total_items = sum(
+        OrderItem.objects.filter(order__status='PAID').aggregate(
+            total=models.Sum('quantity')
+        ).get('total') or 0
+        for _ in [1]
+    )
+    total_items_count = OrderItem.objects.filter(order__status='PAID').count()
+    
+    # Top clients (par revenu dépensé)
+    from django.db.models import Sum
+    top_clients = []
+    client_stats = Order.objects.filter(status='PAID').values('user__id', 'user__username', 'user__email').annotate(
+        total_spent=Sum('total_amount'),
+        order_count=models.Count('id')
+    ).order_by('-total_spent')[:5]
+    
+    for client in client_stats:
+        top_clients.append({
+            'user_id': client['user__id'],
+            'username': client['user__username'],
+            'email': client['user__email'],
+            'total_spent': float(client['total_spent']),
+            'order_count': client['order_count']
+        })
+    
+    # Top produits vendus
+    from django.db.models import F, FloatField
+    from django.db.models.functions import Cast
+    
+    top_products = []
+    product_stats = OrderItem.objects.filter(
+        order__status='PAID'
+    ).values('product__id', 'product__name', 'product__current_price').annotate(
+        total_quantity=models.Sum('quantity'),
+        total_revenue=models.Sum(F('quantity') * F('unit_price_frozen'), output_field=models.DecimalField())
+    ).order_by('-total_quantity')[:5]
+    
+    for product in product_stats:
+        top_products.append({
+            'product_id': product['product__id'],
+            'product_name': product['product__name'],
+            'current_price': float(product['product__current_price']),
+            'total_quantity_sold': product['total_quantity'],
+            'total_revenue': float(product['total_revenue'] or 0)
+        })
+    
+    return {
+        'success': True,
+        'revenue': {
+            'total_revenue': float(total_revenue),
+            'total_discount_given': float(total_discount_given),
+            'average_revenue_per_order': float(average_revenue),
+            'min_revenue': float(min_revenue),
+            'max_revenue': float(max_revenue)
+        },
+        'orders': {
+            'total_orders': stats_by_status['TOTAL'],
+            'by_status': {
+                'cart': stats_by_status['CART'],
+                'pending': stats_by_status['PENDING'],
+                'confirmed': stats_by_status['CONFIRMED'],
+                'paid': stats_by_status['PAID'],
+                'shipped': stats_by_status['SHIPPED']
+            }
+        },
+        'top_clients': top_clients,
+        'top_products': top_products,
+        'summary': {
+            'total_customers_who_paid': paid_orders.values('user').distinct().count(),
+            'average_items_per_paid_order': round(total_items_count / stats_by_status['PAID'], 2) if stats_by_status['PAID'] > 0 else 0
+        }
     }

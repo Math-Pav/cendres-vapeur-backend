@@ -24,7 +24,8 @@ from api.crud.order import (
     confirm_order_details,
     process_payment,
     apply_discount_code,
-    remove_discount
+    remove_discount,
+    get_admin_stats
 )
 from shared.pdf_generator import generate_invoice_pdf
 from shared.paypal_simulator import simulate_paypal_payment
@@ -32,6 +33,18 @@ from apps.models import OrderItem
 from shared.security import require_roles
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
+
+@router.get("/admin/stats", dependencies=[Depends(require_roles("ADMIN"))])
+def get_stats():
+    """
+    Dashboard stats pour admins
+    Retourne: revenus totaux, commandes par statut, top clients, top produits
+    """
+    try:
+        result = get_admin_stats()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("", response_model=list[OrderOut], dependencies=[Depends(require_roles("ADMIN", "EDITOR"))])
 def get_orders():
